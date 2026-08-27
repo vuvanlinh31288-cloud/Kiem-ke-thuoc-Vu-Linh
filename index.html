@@ -196,7 +196,7 @@ async function init(){
     // seed from bundled default list (first-time setup)
     await seedCatalog();
   }else{
-    catSnap.forEach(doc=>{ const d = doc.data(); catalog[doc.id] = {ten:d.ten||'', dvt:d.dvt||'', barcode:d.barcode||null}; });
+    catSnap.forEach(doc=>{ const d = doc.data(); catalog[doc.id] = {ten:d.ten||'', dvt:d.dvt||'', barcode:d.barcode||null, hasQr: !!d.hasQr}; });
   }
   rebuildBarcodeIndex();
 
@@ -408,7 +408,7 @@ async function importDanhMucFile(evt){
     const dvt = (r[colDvt]||'').toString().trim();
     if(catalog[ma]) soCapNhat++; else soMoi++;
     items.push([ma, {ma, ten, dvt}]);
-    catalog[ma] = {ten, dvt, barcode: catalog[ma]?.barcode || null};
+    catalog[ma] = {ten, dvt, barcode: catalog[ma]?.barcode || null, hasQr: catalog[ma]?.hasQr || false};
   }
   const chunks = []; for(let i=0;i<items.length;i+=450) chunks.push(items.slice(i,i+450));
   for(const chunk of chunks){
@@ -432,7 +432,10 @@ function renderDmList(){
   el.innerHTML = entries.map(e=>`
     <div class="list-row" onclick="openDmDetail('${escAttr(e.ma)}')">
       <div><div class="name">${esc(e.ten||'(chưa có tên)')}</div><div class="code">${esc(e.ma)} &middot; ${esc(e.dvt||'')}</div></div>
-      <span class="badge ${e.barcode?'ok':'no'}">${e.barcode?'Đã có mã vạch':'Chưa có mã'}</span>
+      <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
+        <span class="badge ${e.barcode?'ok':'no'}">${e.barcode?'Đã có mã vạch':'Chưa có mã vạch'}</span>
+        ${e.hasQr ? '<span class="badge ok">Đã tạo QR</span>' : ''}
+      </div>
     </div>`).join('');
 }
 function openDmDetail(ma){
@@ -443,13 +446,24 @@ function openDmDetail(ma){
     <h3>${esc(item.ten||ma)}</h3>
     <div class="desc" style="font-family:var(--mono);">${esc(ma)} &middot; ${esc(item.dvt||'')}</div>
     ${item.barcode ? `<div class="lythuyet-box"><div>Mã vạch đã gán<b style="font-family:var(--mono);font-size:12px;">${esc(item.barcode)}</b></div></div>` : ''}
+    ${item.hasQr ? `<div class="lythuyet-box"><div>Mã QR<b style="font-size:12px;color:var(--green);">✅ Đã tạo</b></div></div>` : ''}
     <button class="btn-primary btn-block" onclick="startAssignBarcode('${escAttr(ma)}')">📷 Quét mã vạch bao bì để gán</button>
-    <button class="btn-secondary btn-block" onclick="queueQr('${escAttr(ma)}')">➕ Thêm vào danh sách in mã QR</button>
+    <button class="btn-secondary btn-block" onclick="queueQr('${escAttr(ma)}')">➕ ${item.hasQr?'Tạo lại / in lại mã QR':'Thêm vào danh sách in mã QR'}</button>
     <button class="link-btn" onclick="closeDmDetail()">Đóng</button>`;
   card.scrollIntoView({behavior:'smooth', block:'nearest'});
 }
 function closeDmDetail(){ document.getElementById('dmDetailCard').style.display='none'; }
-function queueQr(ma){ if(!printQueue.includes(ma)) printQueue.push(ma); toast('Đã thêm vào danh sách in: '+(catalog[ma]?.ten||ma)); renderPrintQueue(); }
+async function queueQr(ma){
+  if(!printQueue.includes(ma)) printQueue.push(ma);
+  toast('Đã thêm vào danh sách in: '+(catalog[ma]?.ten||ma));
+  if(catalog[ma] && !catalog[ma].hasQr){
+    catalog[ma].hasQr = true;
+    try{ await db.collection('thuoc').doc(sanitizeId(ma)).set({hasQr:true}, {merge:true}); }catch(e){}
+  }
+  renderPrintQueue();
+  if(document.getElementById('dmDetailCard')?.style.display==='block') openDmDetail(ma);
+  renderDmList();
+}
 function removeFromQueue(ma){ printQueue = printQueue.filter(x=>x!==ma); renderPrintQueue(); }
 function renderPrintQueue(){
   const el = document.getElementById('printQueueCard'); if(!el) return;
