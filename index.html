@@ -495,6 +495,7 @@ async function startCamera(videoElId, onFrame){
   catch(e){ toast('Không truy cập được camera: '+e.message); return false; }
   video.srcObject = camStream; await video.play();
   const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d',{willReadFrequently:true});
+  const smallCanvas = document.createElement('canvas'); const smallCtx = smallCanvas.getContext('2d',{willReadFrequently:true});
   let lastBarcodeAttempt = 0;
   function tick(){
     if(!camStream) return;
@@ -507,11 +508,17 @@ async function startCamera(videoElId, onFrame){
         if(qr && qr.data){ onFrame(qr.data,'qr'); return; }
       }catch(e){}
       const now = Date.now();
-      if(!quaggaBusy && now-lastBarcodeAttempt>650){
+      if(!quaggaBusy && now-lastBarcodeAttempt>400){
         lastBarcodeAttempt = now; quaggaBusy = true;
+        // downscale before handing to Quagga - much faster to encode/decode
+        const targetW = 640;
+        const scale = targetW / canvas.width;
+        smallCanvas.width = targetW;
+        smallCanvas.height = Math.round(canvas.height * scale);
+        smallCtx.drawImage(canvas, 0, 0, smallCanvas.width, smallCanvas.height);
         try{
-          Quagga.decodeSingle({src:canvas.toDataURL('image/png'), numOfWorkers:0, inputStream:{size:800},
-            decoder:{readers:['ean_reader','ean_8_reader','code_128_reader','code_39_reader','upc_reader']}},
+          Quagga.decodeSingle({src:smallCanvas.toDataURL('image/jpeg', 0.6), numOfWorkers:0, inputStream:{size:targetW},
+            decoder:{readers:['ean_reader','ean_8_reader','code_128_reader']}},
             function(result){ quaggaBusy=false; if(result && result.codeResult && result.codeResult.code){ onFrame(result.codeResult.code,'barcode'); } });
         }catch(e){ quaggaBusy=false; }
       }
@@ -538,7 +545,7 @@ function openScanModal(title, onResult){
     <button class="close-x" onclick="closeScanModal()">✕</button>
     <h3>${esc(title)}</h3>
     <div class="scan-wrap"><video id="scanVideo" autoplay playsinline muted></video><div class="scan-frame"></div><div class="scan-line"></div><div class="scan-status" id="scanStatusTxt">Đang tìm mã QR / mã vạch...</div></div>
-    <small class="hint">Đưa mã vào giữa khung hình. App sẽ tự nhận diện.</small></div>`;
+    <small class="hint">Đưa mã vào giữa khung hình, giữ camera cách mã ~10-15cm, đủ sáng, hạn chế rung tay. Mã vạch bao bì thường chậm hơn mã QR.</small></div>`;
   document.body.appendChild(overlay);
   startCamera('scanVideo', (value,type)=>{ document.getElementById('scanStatusTxt').textContent='Đã đọc: '+value; onResult(value,type); });
 }
