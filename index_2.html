@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Kiểm kê thuốc</title>
+<style>
+:root{
+  --ink:#12312B; --paper:#F6F4EE; --card:#FFFFFF; --teal:#0F5C50; --teal-dark:#0A4038;
+  --amber:#B4690E; --amber-bg:#FBEEDC; --red:#A3312A; --red-bg:#FBEAE8;
+  --green:#2F6D3B; --green-bg:#E9F3EA; --line:#DDD8CB; --muted:#6B6255;
+  --mono:'SF Mono','Roboto Mono',ui-monospace,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);-webkit-tap-highlight-color:transparent;padding-bottom:76px;}
+h1,h2,h3{margin:0 0 4px 0;font-weight:700;letter-spacing:-0.01em;}
+.app-header{background:var(--teal);color:#F6F4EE;padding:18px 16px 22px 16px;border-radius:0 0 20px 20px;position:relative;overflow:hidden;}
+.app-header::after{content:"";position:absolute;right:-30px;top:-30px;width:140px;height:140px;border:2px dashed rgba(246,244,238,0.25);border-radius:24px;transform:rotate(18deg);}
+.app-header .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:0.14em;text-transform:uppercase;opacity:0.75;margin-bottom:6px;}
+.app-header h1{font-size:20px;}
+.app-header .sub{font-size:13px;opacity:0.85;margin-top:2px;}
+.context-row{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;}
+.pill{background:rgba(246,244,238,0.14);border:1px solid rgba(246,244,238,0.35);color:#F6F4EE;padding:6px 12px;border-radius:999px;font-size:12.5px;display:flex;align-items:center;gap:6px;cursor:pointer;}
+.pill b{font-weight:700;}
+.pill.warn{background:rgba(180,105,14,0.35);border-color:rgba(251,238,220,0.5);}
+main{padding:14px 14px 8px 14px;max-width:640px;margin:0 auto;}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px;}
+.card h3{font-size:15px;}
+.card .desc{font-size:12.5px;color:var(--muted);margin-bottom:12px;line-height:1.5;}
+label{font-size:12.5px;color:var(--muted);display:block;margin-bottom:4px;font-weight:600;}
+input[type=text],input[type=number],input[type=date],input[type=password],select{width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:15px;background:#FCFBF8;color:var(--ink);font-family:var(--sans);}
+input:focus,select:focus{outline:2px solid var(--teal);outline-offset:1px;}
+.field{margin-bottom:12px;}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+button{font-family:var(--sans);font-weight:700;border:none;border-radius:10px;padding:11px 16px;font-size:14px;cursor:pointer;}
+.btn-primary{background:var(--teal);color:#fff;width:100%;}
+.btn-primary:active{background:var(--teal-dark);}
+.btn-secondary{background:#EFEAE0;color:var(--ink);}
+.btn-outline{background:transparent;border:1.5px solid var(--teal);color:var(--teal);}
+.btn-danger{background:var(--red-bg);color:var(--red);}
+.btn-block{width:100%;margin-top:6px;}
+.btn-sm{padding:7px 12px;font-size:12.5px;border-radius:8px;}
+button:disabled{opacity:0.45;cursor:not-allowed;}
+.tabbar{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);display:flex;z-index:50;padding-bottom:env(safe-area-inset-bottom);}
+.tabbar button{flex:1;background:none;border:none;border-radius:0;padding:10px 4px 8px 4px;display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--muted);font-weight:600;font-size:11px;}
+.tabbar button.active{color:var(--teal);}
+.tabbar .ic{font-size:19px;line-height:1;}
+.hidden{display:none !important;}
+.search-box{position:relative;margin-bottom:10px;}
+.list-row{display:flex;justify-content:space-between;align-items:center;padding:11px 4px;border-bottom:1px solid var(--line);cursor:pointer;gap:10px;}
+.list-row:last-child{border-bottom:none;}
+.list-row .name{font-size:13.5px;font-weight:600;line-height:1.35;}
+.list-row .code{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:2px;}
+.badge{font-size:10.5px;padding:3px 8px;border-radius:999px;font-weight:700;white-space:nowrap;}
+.badge.ok{background:var(--green-bg);color:var(--green);}
+.badge.no{background:var(--amber-bg);color:var(--amber);}
+.scan-wrap{position:relative;background:#000;border-radius:14px;overflow:hidden;aspect-ratio:3/4;max-height:60vh;}
+.scan-wrap video{width:100%;height:100%;object-fit:cover;display:block;}
+.scan-frame{position:absolute;inset:14%;border:2.5px solid rgba(246,244,238,0.85);border-radius:14px;box-shadow:0 0 0 1000px rgba(0,0,0,0.28);}
+.scan-line{position:absolute;left:14%;right:14%;top:14%;height:2px;background:linear-gradient(90deg,transparent,#D9F0A6,transparent);animation:scanmove 1.8s ease-in-out infinite;}
+@keyframes scanmove{0%{top:14%;}50%{top:82%;}100%{top:14%;}}
+.scan-status{position:absolute;bottom:10px;left:0;right:0;text-align:center;color:#fff;font-size:12px;font-family:var(--mono);opacity:0.85;}
+.result-card{border:1.5px solid var(--teal);background:#F2F8F4;border-radius:14px;padding:14px;margin-top:12px;}
+.result-card .rname{font-weight:700;font-size:15px;}
+.result-card .rcode{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-bottom:10px;}
+.lythuyet-box{display:flex;gap:16px;font-size:12.5px;color:var(--muted);margin-bottom:12px;background:#fff;border-radius:10px;padding:10px 12px;}
+.lythuyet-box div b{display:block;color:var(--ink);font-size:14px;}
+table.report{width:100%;border-collapse:collapse;font-size:12px;}
+table.report th{text-align:left;font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em;padding:6px 6px;border-bottom:1.5px solid var(--line);position:sticky;top:0;background:#fff;}
+table.report td{padding:7px 6px;border-bottom:1px solid var(--line);vertical-align:top;}
+table.report td.code{font-family:var(--mono);font-size:10.5px;color:var(--muted);}
+.tag{font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;display:inline-block;}
+.tag.match{background:var(--green-bg);color:var(--green);}
+.tag.diff{background:var(--red-bg);color:var(--red);}
+.tag.missing{background:var(--amber-bg);color:var(--amber);}
+.summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;}
+.summary-grid .s{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 8px;text-align:center;}
+.summary-grid .s .n{font-size:19px;font-weight:800;color:var(--teal);}
+.summary-grid .s .l{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:0.03em;}
+.toast{position:fixed;bottom:82px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 18px;border-radius:999px;font-size:13px;z-index:100;opacity:0;transition:opacity 0.25s;pointer-events:none;}
+.toast.show{opacity:1;}
+.qr-tile{display:flex;flex-direction:column;align-items:center;border:1px solid var(--line);border-radius:10px;padding:8px;background:#fff;}
+.qr-tile canvas{width:100%;height:auto;}
+.qr-tile .qtn{font-size:10px;text-align:center;margin-top:4px;font-weight:600;line-height:1.3;}
+.qr-tile .qtc{font-family:var(--mono);font-size:9px;color:var(--muted);}
+.qr-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px;}
+.modal-overlay{position:fixed;inset:0;background:rgba(18,49,43,0.55);z-index:200;display:flex;align-items:flex-end;justify-content:center;}
+.modal-sheet{background:#fff;border-radius:18px 18px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom)) 16px;width:100%;max-width:640px;max-height:88vh;overflow-y:auto;}
+.modal-sheet h3{margin-bottom:12px;}
+.close-x{position:absolute;top:10px;right:14px;background:none;border:none;font-size:20px;color:var(--muted);padding:4px;}
+.empty-state{text-align:center;padding:30px 10px;color:var(--muted);font-size:13px;}
+.divider{height:1px;background:var(--line);margin:14px 0;}
+.link-btn{background:none;border:none;color:var(--teal);font-weight:700;font-size:13px;padding:6px 0;cursor:pointer;}
+select{-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%236B6255' d='M7 10l5 5 5-5z'/></svg>");background-repeat:no-repeat;background-position:right 10px center;background-size:18px;}
+small.hint{font-size:11.5px;color:var(--muted);display:block;margin-top:4px;}
+.setup-screen{max-width:520px;margin:40px auto;padding:0 16px;}
+.setup-screen ol{padding-left:18px;font-size:13.5px;line-height:1.7;}
+.setup-screen code{background:#EFEAE0;padding:2px 6px;border-radius:5px;font-family:var(--mono);font-size:12px;}
+</style>
+</head>
+<body>
+
+<div id="setupScreen" class="setup-screen hidden">
+  <div class="card">
+    <h3>⚙️ Chưa kết nối cơ sở dữ liệu</h3>
+    <div class="desc">
+      App này cần một Firebase Firestore để nhiều người cùng kiểm kê song song mà không mất dữ liệu.
+      Mở file <code>index.html</code>, tìm dòng <code>const firebaseConfig = {...}</code> ở đầu thẻ
+      <code>&lt;script&gt;</code> cuối trang, và dán cấu hình Firebase của bạn vào đó (xem README.md đi kèm).
+    </div>
+  </div>
+</div>
+
+<div id="appRoot" class="hidden">
+<div class="app-header">
+  <div class="eyebrow">Khoa Dược &middot; Kiểm kê tồn kho</div>
+  <h1>Kiểm kê thuốc</h1>
+  <div class="sub" id="subHeader">Quét mã &middot; đối chiếu tồn &middot; xuất báo cáo</div>
+  <div class="context-row">
+    <div class="pill" id="khoPill" onclick="showTab('kho')">🏬 Kho: <b id="khoPillText">Chưa chọn</b></div>
+    <div class="pill" id="nguoiPill" onclick="openNguoiModal()">🧑‍⚕️ <b id="nguoiPillText">Chưa có tên</b></div>
+  </div>
+</div>
+
+<main id="main"></main>
+
+<div class="tabbar">
+  <button data-tab="kho" onclick="showTab('kho')"><span class="ic">🏬</span>Kho</button>
+  <button data-tab="danhmuc" onclick="showTab('danhmuc')"><span class="ic">🏷️</span>Mã thuốc</button>
+  <button data-tab="kiemke" onclick="showTab('kiemke')"><span class="ic">📷</span>Kiểm kê</button>
+  <button data-tab="baocao" onclick="showTab('baocao')"><span class="ic">📊</span>Báo cáo</button>
+</div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+
+<script>
+/* =====================================================================
+   1) DÁN CẤU HÌNH FIREBASE CỦA BẠN VÀO ĐÂY (xem hướng dẫn trong README.md)
+   ===================================================================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyDPjie0W5DtmswMKs1LqlPG1-18vdl0DYY",
+  authDomain: "kiem-ke-vu-linh.firebaseapp.com",
+  projectId: "kiem-ke-vu-linh",
+  storageBucket: "kiem-ke-vu-linh.firebasestorage.app",
+  messagingSenderId: "172426803064",
+  appId: "1:172426803064:web:9b507d33621c1ebcc87a8d"
+};
+/* ===================================================================== */
+
+const DEFAULT_CATALOG_ARRAY = [{"ma":"AA.06.02.10.0020","ten":"Rifampicin 150mg (VN)","dvt":"viên nén"},{"ma":"AA.06.02.10.0034","ten":"Voxin 1g (Vianex,Greece)","dvt":"Chai"},{"ma":"AE.01.01.01.0539","ten":"Papilocare Vaginal Gel 5ml (Procare,TBN)","dvt":"Tuýp"},{"ma":"AA.26.02.01.0053","ten":"Natri clorid 0.9% 250ml (FKB, VN)","dvt":"Chai"},{"ma":"AA.11.03.01.0001","ten":"Human Albumin Takeda 20%  50ml Inj. (Takeda, Ý)","dvt":"Chai"},{"ma":"AA.06.02.01.0099","ten":"CefTRIaxone Panpharma 1g Inj. @ (Panpharma,Pháp)","dvt":"Lọ"},{"ma":"AA.13.01.01.0043","ten":"Momate Cream 0.1% 15g (Glenmark, Ấn Độ)","dvt":"Tuýp"},{"ma":"AA.13.01.01.0081","ten":"Imiquad 5% 0,25g (Glenmark Pharmaceuticals Ltd., Ấn Độ)","dvt":"Gói"},{"ma":"AA.12.03.01.0037","ten":"Nicardipine 10mg/10ml (Aguettant, Pháp)","dvt":"Ống"},{"ma":"AA.15.01.01.0013","ten":"Povidine 4% 500ml (Pharmedic, VN)","dvt":"Chai"},{"ma":"AA.06.02.06.0006","ten":"Klacid SUS 125mg/5ml 60ml (Abbott,Indonesia)","dvt":"Chai"},{"ma":"AA.01.01.01.0034","ten":"FREsofol 1% Mct/Lct Inj.50ml (Fresenius Kabi, Áo) (TĐ)","dvt":"Chai"},{"ma":"AA.13.01.01.0087","ten":"Epiduo 0,1%/2,5% gel 15g (Galderma,Pháp) VAT 5%","dvt":"Tuýp"},{"ma":"AA.11.02.01.0025","ten":"Acenocoumarol 4mg .(!). Tab. (SPM,Việt Nam)","dvt":"viên"},{"ma":"AA.02.01.01.0112","ten":"Paratramol 37,5mg+ 325mg tab. (Pharmaceutical, Poland)","dvt":"viên"},{"ma":"AF.01.01.01.0016","ten":"Twinrix 1ml (GSK, Bỉ), hộp 1 ống tiêm","dvt":"Ống tiêm"},{"ma":"AA.02.01.01.0102","ten":"Polebufen 100mg/5ml - 120ml (medana, Ba Lan)","dvt":"Chai"},{"ma":"AE.01.01.01.0713","ten":"Buồng đệm khí dung van 2 chiều Biohealth BH05 (Trung quốc)","dvt":"Chiếc"},{"ma":"AA.02.01.01.0015","ten":"Efferalgan SAC. 250mg (France)","dvt":"Gói"},{"ma":"AD.01.01.01.0338","ten":"Latopic Probiotic emollient active Face and Body Cream (Kem dưỡng da) 75ml (Poland)","dvt":"Tuýp"},{"ma":"AA.06.02.09.0007","ten":"Doxycyline 100mg (Mekophar, VN)","dvt":"Viên nang"},{"ma":"AE.01.01.01.0047","ten":"Novofine Needle 31G (Kim bút tiêm insulin) 0.25x6mm","dvt":"Cái"},{"ma":"AF.01.01.01.0090","ten":"Abrysvo (0,06mg+0,06mg)/0,5ml Inj. (Pfizer, Bỉ)","dvt":"Ống tiêm"},{"ma":"AE.01.01.01.0209","ten":"Dầu parafin 5ml","dvt":"Ống"},{"ma":"AA.01.01.01.0055","ten":"ANAropin 5mg/ml x 10ml (0.5%) .(!). Inj. (Astrazeneca, Singapore)(TĐ)","dvt":"Lọ"},{"ma":"AF.01.01.01.0013","ten":"RotaTEQ 2ml (MSD, Mỹ), hộp 10 tuýp","dvt":"Tuýp"},{"ma":"AC.01.01.01.0206","ten":"Special Kid Vitamine C Naturelle ( Eric Favre Wellness, Pháp)","dvt":"Chai"},{"ma":"AA.12.06.01.0001","ten":"Actilyse 50mg .(!). Inj. (Boehringer, Đức)","dvt":"Lọ"},{"ma":"AA.14.02.01.0022","ten":"Omnipaque Iod Inj.350mg/ml x 100ml (GE healthcare Ireland Limited,Ireland)","dvt":"Chai"},{"ma":"AA.25.01.01.0037","ten":"SpiOLTO Respimat 2.5mcg+ 2.5mcg/4ml (Boehringer Ingelheim, Đức)","dvt":"Hộp"},{"ma":"AA.04.01.01.0041","ten":"Ephedrine 30mg/10ml.(!).Inj. Syringe (Aguettant, France)","dvt":"Ống tiêm"},{"ma":"AA.01.01.01.0052","ten":"Atropin sulfat (Hải Dương, VN)","dvt":"Lọ"},{"ma":"AA.20.01.01.0012","ten":"Bridion 200mg/2ml I.V (N.V.Organon, Holland)","dvt":"Lọ"},{"ma":"AD.01.01.01.0761","ten":"Chitobac 25g (Meracine, Việt Nam)","dvt":"Tuýp"},{"ma":"AA.11.02.01.0056","ten":"HAEMOstop (tranexamic acid) 250mg/5ml Inj.(PT. Novell, Indonesia)","dvt":"Ống"},{"ma":"AA.17.05.01.0032","ten":"Enterogermina 4 tỷ bào tử/5ml (Sanofi, Ý)","dvt":"Ống"},{"ma":"AE.02.01.01.0462","ten":"Sufrin 5ml (Syntech pharm,Việt Nam)","dvt":"Lọ"},{"ma":"AE.01.01.01.0721","ten":"Tonimer Lab HYPERTONIC BABY Spray 100mL @ (Istituto, Ý) VAT5","dvt":"Chai"},{"ma":"AY.04.01.01.0017","ten":"PHENYlephrine 50mcg/ml 10ml (!) (Aguettant, France) (AY)","dvt":"Ống tiêm"},{"ma":"AA.11.05.01.0014","ten":"Recormon 4000IU/0.3ml Inj. (Roche, Đức)","dvt":"Ống tiêm"},{"ma":"AA.01.01.01.0086","ten":"Dexmedetomidine Invagen 100mcg/ml 2ml Inf. (PharmIdea SIA, Latvia)","dvt":"Lọ"},{"ma":"AA.18.03.01.0077","ten":"Insunova -R 100IU/ml x 10ml  .(!). Inj. (Biocon, Ấn Độ)","dvt":"Lọ"},{"ma":"AA.12.03.01.0104","ten":"Micardis Plus 40mg/12.5mg tab. (Boehringer, Hy Lạp)","dvt":"viên"},{"ma":"AC.01.01.01.0330","ten":"Omega-3 + Folic acid + B6 + B12 (Queisser Pharma, Đức) H30v","dvt":"viên"},{"ma":"AY.11.01.01.0013","ten":"Ferrovin 100 mg/5ml (Rafarm, Greece) (AY)","dvt":"Ống"},{"ma":"AA.02.01.01.0132","ten":"Panadol Viên Sủi 500mg Eff. (GlaxoSmithKline Dungarvan Limited, Ireland)","dvt":"viên"},{"ma":"AD.01.01.01.0003","ten":"Cetaphil Gentle SKIN cleanse R 500ml","dvt":"Chai"},{"ma":"AY.02.01.01.0133","ten":"Ibuprofen 400mg Tab. (Danapha, Việt Nam) (AY)","dvt":"viên"},{"ma":"AA.25.01.01.0054","ten":"ZenSALBU nebules 5mg/2.5ml (CPC1 HN,Việt Nam)","dvt":"Ống"},{"ma":"AY.12.02.01.0019","ten":"BFS-Amiron 150mg/3ml Inj. (CPC1 HN,Việt Nam) (AY)","dvt":"Ống"},{"ma":"AY.02.01.01.0114","ten":"Paracetamol 10mg/ml 100ml Inf. (Allomed, Việt Nam) (AY)","dvt":"Túi"},{"ma":"AY.11.02.01.0056","ten":"Haemostop (tranexamic acid) 250mg/5ml Inj. (PT. Novell, Indonesia) (AY)","dvt":"Ống"},{"ma":"AY.17.02.01.0026","ten":"Vincomid 10mg/2ml (Vinh Phuc,Viet Nam)(AY)","dvt":"Ống"},{"ma":"AY.17.03.01.0011","ten":"Vincopane 20mg/1ml Inj. (Vĩnh Phúc, Việt Nam) (AY)","dvt":"Ống"},{"ma":"AY.12.06.01.0004","ten":"Aspilet 80mg (United Pharma,Viet Nam) (AY)","dvt":"viên"},{"ma":"AY.26.02.01.0095","ten":"Magnesi-BFS 15% x 5ml .(!). Inj. (CPC1HN, VN)(AY)","dvt":"Lọ"},{"ma":"AY.12.03.01.0097","ten":"Amlor 5mg Cap (Fareva Amboise, Pháp) (AY)","dvt":"Viên nang"},{"ma":"AA.16.01.01.0021","ten":"BFS-Furosemide 40mg/4ml (CPC1 HN, VN)","dvt":"Ống"},{"ma":"AY.26.02.01.0052","ten":"Lactate Ringer and Dextrose FKB 5% 500ml (Fresenius Kabi,) (AY)","dvt":"Chai"},{"ma":"AA.12.01.01.0015","ten":"A.T Nitroglycerin 5mg/5ml (An Thiên, VN)","dvt":"Ống"},{"ma":"AA.12.06.01.0012","ten":"Brilinta 90mg (AstraZeneca, Thụy Điển)","dvt":"viên"},{"ma":"AY.02.01.01.0031","ten":"Movepain 30mg/1ml (PT. Novell Pharma, Indonesia) (AY)","dvt":"Ống"},{"ma":"AY.04.01.01.0039","ten":"BFS-Naloxone 0.4mg/1ml (CPC1HN, Việt Nam) (AY)","dvt":"Ống"},{"ma":"AY.12.07.01.0002","ten":"CRestor20mg (PR Pharma,USA)(AY)","dvt":"viên"},{"ma":"AY.26.02.01.0051","ten":"Glucose 20% 500ml (FKB, Vietnam) (AY)","dvt":"Chai"},{"ma":"AA.01.01.01.0068","ten":"Lidogel 2% 10g (VCP, Việt Nam)","dvt":"Tuýp"},{"ma":"AA.12.03.01.0003","ten":"Amlor CAP. 5mg (Pfizer, Pháp)","dvt":"Viên nang"},{"ma":"AA.12.05.01.0020","ten":"Digoxin Inj. BFS 0.25mg/ml (CPC1 HN, VN)","dvt":"Ống"},{"ma":"AA.01.01.01.0091","ten":"Anaropin 5mg/ml x 10ml .(!). Inj. (AstraZeneca AB, Thụy Điển)","dvt":"Ống"},{"ma":"AY.17.02.01.0045","ten":"Tanganil 500mg/5ml Inj. (Haupt Pharma, France) (AY)","dvt":"Ống"},{"ma":"AY.21.02.01.0049","ten":"Otrivin 0,05% 10ml Nas. drop. (Haleon CH SARL , Thụy Sĩ) (AY)","dvt":"Lọ"},{"ma":"AA.13.01.01.0095","ten":"Bacterocin Oint 2%, 15g (Kolmar Korea, Hàn Quốc)","dvt":"Tuýp"},{"ma":"AA.06.02.07.0008","ten":"Oflovid OINT 0,3% 3,5g (Santen, Nhật)","dvt":"Tuýp"},{"ma":"AA.11.02.01.0028","ten":"Eliquis 2.5mg .(!). Tab. (Bristol, Mỹ)","dvt":"viên"},{"ma":"AA.26.02.01.0126","ten":"Nước cất pha tiêm 500ml Inf. (Bitechphar, Việt Nam)","dvt":"Chai"},{"ma":"AA.02.01.01.0019","ten":"Efferalgan SAC. 80mg (France)","dvt":"Gói"},{"ma":"AA.15.01.01.0032","ten":"Povidon-Iod HD 10% 90ml (Hải Dương, VN)","dvt":"Chai"},{"ma":"AB.04.01.01.0029","ten":"Than hoạt để hủy thuốc, 5g,Lọ (,)","dvt":"Chai"},{"ma":"AA.06.02.01.0085","ten":"Hagimox 500mg cap. (Hậu Giang, VN)","dvt":"Viên nang"},{"ma":"AA.01.01.01.0095","ten":"Octocaine 100 (36mg+0,018mg)/1,8ml .(!). Inj. (Novocol, Canada)","dvt":"Ống"},{"ma":"AA.21.02.01.0012","ten":"Otrivin Nasal DROP 0,05% 10ml (Novartis, Thụy Sỹ)","dvt":"Chai"},{"ma":"AA.02.01.01.0054","ten":"VOLtaren EMULGEL Gel 1% 20g (Novartis, Thụy Sỹ)","dvt":"Tuýp"},{"ma":"AA.06.03.01.0068","ten":"Vemlidy 25mg (Ireland)","dvt":"viên"},{"ma":"AA.17.07.01.0029","ten":"Pentasa Sac.2g (Ferring, Thụy Sỹ)","dvt":"Gói"},{"ma":"AA.18.03.01.0028","ten":"MiXtarD 30 Flexpen 100IU/ml x 3ml .(!).(Novo Nordisk,Pháp/Đan Mạch)","dvt":"Bút"},{"ma":"AA.18.04.01.0013","ten":"Levothyrox 25 mcg tab. (Merck, Đức)","dvt":"viên"},{"ma":"AY.02.01.01.0156","ten":"Voltaren Emulgel 1% 20g (Haleon, Thụy Sĩ) (AY)","dvt":"Tuýp"},{"ma":"BA.01.01.01.5206","ten":"Đá gel Acool ALD - PE 400D,Túi (,)","dvt":"Túi"},{"ma":"AA.11.01.01.0013","ten":"Ferrovin 100 mg/5ml (Rafarm, Hy Lạp)","dvt":"Ống"},{"ma":"AE.02.01.01.0477","ten":"Đá gel Acool ALD-PE250 250g (An Lộc, Việt Nam)","dvt":"Túi"},{"ma":"AY.18.03.01.0050","ten":"NovoRAPID 100IU/ml x 3ml .(!).(Novo Nordisk, Pháp) (AY)","dvt":"Bút"},{"ma":"AA.28.01.01.0308","ten":"Corora 60 mg/1ml Syringe. (Amgen, Mỹ)","dvt":"Ống tiêm"},{"ma":"AA.21.01.01.0021","ten":"Natri clorid 0,9% 10ml (Pharmedic, VN)","dvt":"Chai"},{"ma":"AE.01.01.01.0837","ten":"Nhiệt kế điện tử Terumo ET*C207S (Terumo, TQ)","dvt":"Chiếc"},{"ma":"AA.11.02.01.0054","ten":"Paringold Injection 25.000 IU/5ml x 5ml .(!). Sol. (JW Pharmaceutical Corporation, Hàn Quốc)","dvt":"Lọ"},{"ma":"AY.22.01.01.0001","ten":"Duratocin 100mcg/ml (AY)","dvt":"Ống"},{"ma":"AA.13.01.01.0066","ten":"Nước oxy già 3%, 50ml (Hóa dược, VN)","dvt":"Chai"},{"ma":"AC.02.01.01.0090","ten":"Tsururinko Quickly 3g (Bột cô đặc thực phẩm)","dvt":"Gói"},{"ma":"AA.02.02.01.0015","ten":"Colchicina Seid 1mg Tab. (Seid, S.A, Spain)","dvt":"viên"},{"ma":"AD.01.01.01.0683","ten":"Stanhome Soft shower Chamomile scent gel douche corps et visage 740ml - Sữa tắm, rửa mặt không xà phòng làm sạch cho da nhạy cảm (Yves Rocher, Pháp)","dvt":"Chai"},{"ma":"AA.02.04.01.0037","ten":"Aclasta 5mg/100ml Inj. (Fresenius Kabi Austria, Áo)","dvt":"Chai"},{"ma":"AY.18.03.01.0055","ten":"Toujeo solostar 300IU/ml x 1.5ml .(!). (Sanofi,Đức)(AY)","dvt":"Bút"},{"ma":"AA.27.01.01.0028","ten":"MoriAminT Forte (Roussel, VN)","dvt":"viên"},{"ma":"AF.01.01.01.0023","ten":"Heberbiovac HB 10mcg/0.5ml (CIGB, Cuba)","dvt":"Lọ"},{"ma":"AA.28.01.01.0019","ten":"Thuốc khác","dvt":"đơn vị"},{"ma":"AA.06.02.07.0038","ten":"Ofloxacin-POS 3mg/ml x 5ml Drop. (URSAPHARM, Đức)","dvt":"Lọ"},{"ma":"AF.01.01.01.0081","ten":"Bexsero 0.5ml sus. Syringe (GSK, Ý), hộp 1 bơm tiêm","dvt":"Ống tiêm"},{"ma":"AA.26.02.01.0069","ten":"Aminoplasmal* 5% 500ml (Bbraun, Đức)","dvt":"Chai"},{"ma":"AF.01.01.01.0012","ten":"RotaRIX Vial 1.5ml (GSK, Bỉ), hộp 1 ống","dvt":"Ống"},{"ma":"AA.18.01.01.0064","ten":"Dexamethasone 4mg/ml (Hải Dương, VN)","dvt":"Ống"},{"ma":"AA.18.01.01.0059","ten":"Asosalic cream 30g (Replek Farm Ltd. Skopje, CH Macedonia)","dvt":"Tuýp"},{"ma":"AY.21.02.01.0011","ten":"Otipax 15ml (AY)","dvt":"Chai"},{"ma":"AA.18.02.01.0019","ten":"Implanon NXT 68mg (Organon, Hà Lan)","dvt":"Hộp"},{"ma":"AY.24.03.01.0004","ten":"Haloperidol 0,5% 5mg/1ml  (Danapha, Viet Nam)  (AY)","dvt":"Ống"},{"ma":"AE.01.01.01.0078","ten":"Sanyrene 20ml VAT5%","dvt":"Chai"},{"ma":"AE.01.01.01.0545","ten":"Neilmed Nasamist Saline Spray Isotonic 75ml (Xịt rửa mũi)  (Neilmed Pharmaceuticals,USA)","dvt":"Chai"},{"ma":"AA.28.01.01.0310","ten":"Corora 60 mg/1ml pre-filled Syringe. (Daycare) (Amgen, Mỹ)","dvt":"Ống tiêm"},{"ma":"AF.01.01.01.0082","ten":"Qdenga 0,5ml (Takeda,Đức) Hộp 1 lọ","dvt":"Lọ"},{"ma":"AA.02.01.01.0114","ten":"Paracetamol 10mg/ml 100ml Inf. (Allomed, Việt Nam)","dvt":"Túi"},{"ma":"AG.02.01.01.0003","ten":"Khăn ướt Bobby 100 tờ (Diana, VN) VAT8","dvt":"Gói"},{"ma":"AA.11.03.01.0007","ten":"Flexbumin 20% 50ml Inj. (Baxalta US, Mỹ)","dvt":"Chai"},{"ma":"AE.01.01.01.0040","ten":"Máy xông khí dung NE-C801 (Omron, VN)","dvt":"Chiếc"},{"ma":"AA.12.02.01.0015","ten":"Bfs-ADEnOSin 6mg/2ml (CPC1 HN,Vietnam)","dvt":"Lọ"},{"ma":"AA.18.03.01.0058","ten":"Tresiba Flextouch 100IU/ml x 3ml .(!).(Novo Nordisk,Đan Mạch)","dvt":"Bút"},{"ma":"AA.15.01.01.0031","ten":"Clorhexidin gluconat 0.12% (Sagopha, VN) 200ml","dvt":"Chai"},{"ma":"AA.06.02.01.0035","ten":"Rocephin 1g (Roche, Thụy Sỹ)","dvt":"Lọ"},{"ma":"AA.01.01.01.0029","ten":"XyLOcaine Jelly Oint. 2% 30g (Recipharm Karlskoga, Thụy Điển)","dvt":"Tuýp"},{"ma":"AA.19.01.01.0016","ten":"ImmunoHBS 180 IU/ml (Kendrion,Ý)","dvt":"Lọ"},{"ma":"AF.01.01.01.0051","ten":"Boostrix 0.5ml (GSK,Belgium),hộp 1 bơm tiêm","dvt":"Ống tiêm"},{"ma":"AE.01.01.01.0891","ten":"SINOVIAL HL 64 2ml Inj. (IBSA Farmaceutici Italia SRL/ Ý)","dvt":"Ống tiêm"},{"ma":"AF.01.01.01.0039","ten":"Tetraxim 0.5ml (Sanofi, Pháp),hộp 1 bơm","dvt":"Ống tiêm"},{"ma":"AE.01.01.01.0111","ten":"Neilmed SR Kit 10 Sachets (Mỹ)","dvt":"Hộp"},{"ma":"AA.18.01.01.0022","ten":"SOLU-Medrol Inj. 40mg (Pfizer,Bỉ)","dvt":"Lọ"},{"ma":"AA.11.02.01.0033","ten":"Gemapaxane  4000IU/ 0.4ml .(!). (Itafarm,Ý)","dvt":"Ống tiêm"},{"ma":"AA.06.02.01.0029","ten":"NovaFex 100mg/5ml- 37.5ml (Mekophar, VN)","dvt":"Chai"},{"ma":"AD.01.01.01.0113","ten":"Ziaja Atopic Skin Dermatological Formula Face Cream Soothing Moisturising 50ml (Kem dịu nhẹ dưỡng ẩm 5% Ure) (Ba Lan)","dvt":"Tuýp"},{"ma":"AF.01.01.01.0084","ten":"Shingrix 50mcg/0,5ml Inj. (GSK, Pháp/ Bỉ) Hộp 1 lọ","dvt":"Lọ"},{"ma":"AA.18.02.01.0025","ten":"MirENa 52 mg (Bayer, Phần Lan)","dvt":"Thiết bị"},{"ma":"AY.26.02.01.0035","ten":"Ringer Lactat 500ml (FKB, Viet Nam) (AY)","dvt":"Chai"},{"ma":"AA.06.02.01.0176","ten":"Augmentin ES 600mg/42,9mg/5ml 50ml Susp. (GSK, Pháp)","dvt":"Lọ"},{"ma":"AC.01.01.01.0344","ten":"Kinder Omega-3 Syr.250ml (Queisser, Đức)","dvt":"Chai"},{"ma":"AD.01.01.01.0476","ten":"Dầu mát xa hạt bông Chicco 0M+200ml (Ý)","dvt":"Chai"},{"ma":"AA.18.03.01.0052","ten":"NovoMIX 30 Flexpen 100U/ml .(!). (Novo Nordisk, France)","dvt":"Bút"},{"ma":"AA.18.01.01.0077","ten":"Symbicort RAPIHALER 160mcg/4.5mcg 120 doses (Astra Zeneca,France)","dvt":"Lọ"},{"ma":"AF.01.01.01.0028","ten":"VariVAx 0.5ml (MSD,Mỹ),hộp 1 lọ","dvt":"Lọ"},{"ma":"AA.21.02.01.0031","ten":"Strepsils Maxpro 8,75mg (Reckitt, Thái Lan)","dvt":"viên"},{"ma":"AD.01.01.01.0580","ten":"Redenyl Anti hair loss lotion Spray. 80ml (Medimar, Hy lạp)","dvt":"Chai"},{"ma":"AD.01.01.01.0489","ten":"TDF Fairence T-Complex 30g (TDF Kem trị nám) (Toshiki,Singapore)","dvt":"Chai"},{"ma":"AA.27.01.01.0152","ten":"Cernevit Pwd. inj. (Fareva Pau, Pháp)","dvt":"Lọ"},{"ma":"AA.21.01.01.0018","ten":"mYDrin - P 0.5% 10ml (Santen)","dvt":"Chai"},{"ma":"AA.14.01.01.0001","ten":"Alcaine 0,5% 15ml (Alcon, Bỉ)","dvt":"Lọ"},{"ma":"AA.22.01.01.0009","ten":"Propess 10mg (Ferring, Anh)","dvt":"Túi"},{"ma":"AA.06.02.09.0001","ten":"Doxycyclin 100mg (Domesco, VN)","dvt":"viên nén"},{"ma":"AA.12.05.01.0019","ten":"DOBUtamin Panpharma 250mg/20ml .(!).  (Rotex, Germany)","dvt":"Lọ"},{"ma":"AA.21.02.01.0008","ten":"FlixoTIDE Evohaler Spray 125mcg 120Dose (Glaxo Wellcome, Tây Ban Nha)","dvt":"Chai"},{"ma":"AA.27.01.01.0060","ten":"Zinc-kid Inmed 70mg hương dâu (Nam Hà, Việt Nam)","dvt":"Gói"},{"ma":"AA.18.02.01.0080","ten":"Darstin 10mg/g x 80g  Gel (Seid, S.A, Spain)","dvt":"Tuýp"},{"ma":"AA.26.03.01.0004","ten":"Nước cất pha tiêm 5ml (CPC1, VN)","dvt":"Ống"},{"ma":"AA.08.01.01.0025","ten":"Dipherelin P.R 3.75mg (Ipsen, Pháp)","dvt":"Lọ"},{"ma":"AA.12.01.01.0022","ten":"Vinceryl 5mg/5ml  Vial (Vĩnh Phúc, Việt Nam)","dvt":"Ống"},{"ma":"AA.22.01.01.0016","ten":"HEMAstop (carboprost) 250mcg (CPC1 HN,Vietnam)","dvt":"Lọ"},{"ma":"AE.01.01.01.0784","ten":"Nilocin VORTE Pen 3ml (UnigroupApS, Đan Mạch)","dvt":"Bút"},{"ma":"AA.27.01.01.0137","ten":"Femalto 50mg/ml 60ml syr. (CPC1 Hà Nội, Việt Nam)","dvt":"Chai"},{"ma":"AA.13.01.01.0054","ten":"Kẽm oxyd 10% 15g (Hà Tây, VN)","dvt":"Tuýp"},{"ma":"AA.18.02.01.0036","ten":"ProgestoGEL 1% 80g (Besins, Bỉ)","dvt":"Tuýp"},{"ma":"AA.13.01.01.0032","ten":"Daivobet Oint 50mcg+0.5mg/g 15g","dvt":"Tuýp"},{"ma":"AA.13.01.01.0033","ten":"Daivonex Oint 50mcg/g 30g","dvt":"Tuýp"},{"ma":"AA.22.02.01.0005","ten":"Atosiban EVER Pharma 37,5mg/5ml Inf. (Ever Pharma Jena GmbH)","dvt":"Lọ"},{"ma":"AA.18.03.01.0059","ten":"Saxenda 6mg/ml-3ml (Novo Nordisk,Đan mạch)","dvt":"Bút"},{"ma":"AC.01.01.01.0279","ten":"Special Kid Vitamine D3  20ml@ (Eric favre, Pháp)","dvt":"Chai"},{"ma":"AA.21.01.01.0026","ten":"Pataday 0,2% 2,5ml (Alcon, Mỹ)","dvt":"Chai"},{"ma":"AD.01.01.01.0271","ten":"Su bạc 35 (Cty Hồng Bàng, VN)","dvt":"Tuýp"},{"ma":"AA.21.01.01.0015","ten":"Liposic Eye Gel 0,2% 10g (Dr. Gerhard, Đức)","dvt":"Chai"},{"ma":"AA.26.02.01.0118","ten":"Calci clorid 500mg/ 5ml Inj.(!). (Minh Dân, Việt Nam)","dvt":"Ống"},{"ma":"AD.01.01.01.0288","ten":"Gel đặc trị sẹo lồi Cebelia LCE Balm 15ml (Cebelia, Pháp)","dvt":"Tuýp"},{"ma":"AE.02.01.01.0069","ten":"Tã giấy Caryn ML 10-1009","dvt":"Túi"},{"ma":"AA.21.01.01.0009","ten":"Duotrav 2.5ml (Alcon, Bỉ)","dvt":"Chai"},{"ma":"AA.02.04.01.0029","ten":"Statripsine Stella 4,2mg tab. (Stella, Việt Nam)","dvt":"viên"},{"ma":"AA.14.02.01.0002","ten":"Dotarem 10ml (Guerbet, Pháp)","dvt":"Lọ"},{"ma":"AE.01.01.01.0850","ten":"Mytro Plus 0,01% 10ml eye drop (SciPrec Lifesciences - Ấn Độ)","dvt":"Lọ"},{"ma":"AD.01.01.01.0588","ten":"Stanhome - Sweet Lips Baume Levres 4,8gr (Yves Rocher, Pháp) - Son dưỡng môi","dvt":"Chai"},{"ma":"AA.04.01.01.0012","ten":"Sodium Bicarbonate 4,2% 250ml (B.Braun, Đức)","dvt":"Chai"},{"ma":"AC.01.01.01.0152","ten":"BioGaia Protectis Drops (Thụy Điển)","dvt":"Chai"},{"ma":"AA.18.01.01.0082","ten":"Benate FORT OINTMENT 10g (Merap, VN)","dvt":"Tuýp"},{"ma":"AA.13.01.01.0039","ten":"Rocimus 0.03%-10g","dvt":"Tuýp"},{"ma":"AD.01.01.01.0002","ten":"Cetaphil Gentle SKIN cleanse R 125ml","dvt":"Chai"},{"ma":"AA.11.02.01.0040","ten":"Heparin 25.000UI/5ml .(!). Inj. (Panpharma, Đức)","dvt":"Lọ"},{"ma":"AC.01.01.01.0179","ten":"Orthomol NATAL (Orthomol, Đức)","dvt":"Hộp"},{"ma":"AA.12.01.01.0007","ten":"Nitromint Spray 10g 0.4mg/liều x180 liều (Egis,Hungary)","dvt":"Chai"},{"ma":"AA.18.02.01.0067","ten":"ProgesteRONe 25mg/1ml Inj. (Panpharma, Đức) (TĐ)","dvt":"Ống"},{"ma":"AA.06.02.02.0008","ten":"ToBRAdex Drop 5ml (Alcon, Bỉ)","dvt":"Chai"},{"ma":"AA.19.01.01.0030","ten":"IVACRIG 1.000IU/5ml (IVAC,VN) pwd. Inj. (Huyết thanh kháng dại) (hộp 6 lọ)","dvt":"Lọ"},{"ma":"AA.02.04.01.0003","ten":"Alpha Chymotrysine Choay Tab.21 microkatals (Sanofi, VN)","dvt":"viên"},{"ma":"AD.01.01.01.0703","ten":"Bioderma Sebium Kerato+ 30ml (Bioderma, Pháp)","dvt":"Tuýp"},{"ma":"AD.01.01.01.0339","ten":"Latopic Probiotic emollient active Body Emulsion (Sữa dưỡng thể) 250ml (Poland)","dvt":"Tuýp"},{"ma":"AA.18.03.01.0001","ten":"Actrapid HM 100IU/ml x 10ml  .(!). (Novo Nordisk, Pháp/Đan Mạch)","dvt":"Lọ"},{"ma":"AA.06.01.01.0018","ten":"Fugacar thường 500mg tab. (Lusome,Bồ đào nha)","dvt":"viên"},{"ma":"AF.01.01.01.0074","ten":"Gardasil 9 0.5ml (MSD, Mỹ), hộp 1 bơm tiêm","dvt":"Ống tiêm"},{"ma":"AD.01.01.01.0762","ten":"Towders Plus Spray 100ml (Quang Xanh, VN)","dvt":"Chai"},{"ma":"AA.13.01.01.0034","ten":"Xamiol gel 50mcg+0.5mg/g 15g","dvt":"Tuýp"},{"ma":"AA.26.02.01.0087","ten":"Periolimel N4E 1000ml (Baxter, Bỉ)","dvt":"Túi"},{"ma":"AA.06.02.01.0025","ten":"InVANZ 1g (MSD, Pháp)","dvt":"Lọ"},{"ma":"AA.06.02.01.0049","ten":"Zinnat Tab.500mg (Glaxo, Anh)","dvt":"viên"},{"ma":"AD.01.01.01.0422","ten":"Kem Purelan 100 7g (Medela, Thụy Sỹ)","dvt":"Tuýp"},{"ma":"AA.15.01.01.0035","ten":"Povidone 10% 125ml (Hdpharma, Việt Nam)","dvt":"Chai"},{"ma":"AA.02.01.01.0156","ten":"Voltaren Emulgel 1% 20g (Haleon, Thụy Sĩ)","dvt":"Tuýp"},{"ma":"AD.01.01.01.0585","ten":"Stanhome - Balance Shampo 200ml (Yves Rocher, Pháp) -Dầu gội làm sạch, ngăn ngừa gàu và giảm ngứa da đầu","dvt":"Chai"},{"ma":"AF.01.01.01.0022","ten":"Verorab 0.5ml (Sanofi, Pháp),lọ 1 liều","dvt":"Lọ"},{"ma":"AE.01.01.01.0043","ten":"Hemoclin (YouMedical, Hà Lan)","dvt":"Tuýp"},{"ma":"AA.02.01.01.0032","ten":"Panadol TAB. 500mg (Sterling drug, Malaysia)","dvt":"viên"},{"ma":"AE.01.01.01.0861","ten":"Viên đặt âm đạo Cumlaude lab - CLX Ovules 3g (Istituto, Ý)","dvt":"Hộp"},{"ma":"AA.13.01.01.0022","ten":"Mỡ Salicylic 5%","dvt":"Tuýp"},{"ma":"AC.01.01.01.0571","ten":"Anti Stress tab.@ (Doppelherz, Đức)","dvt":"Hộp"},{"ma":"AA.27.01.01.0138","ten":"Dedrogyl 1,5mg/ 10ml oral sol. (Laboratorio Farmaceutico S.I.T.Specialità Igienico Terapeutiche S.R.L., Ý)","dvt":"Chai"},{"ma":"AA.01.01.01.0016","ten":"Lidocain SPRAY 10% 38g (Egis, Hungary)","dvt":"Chai"},{"ma":"AY.25.01.01.0006","ten":"Combivent UDV 2.5mg+0.5mg/2,5ml (Laboratoire Unither,France) (AY)","dvt":"Ống"},{"ma":"AE.01.01.01.0365","ten":"Neilmed NASOGEL (NeilMed, Mỹ)","dvt":"Chai"},{"ma":"AA.14.02.01.0011","ten":"Visipaque 320mg/ml Inj. 100ml (GE Health Care, Ailen)","dvt":"Lọ"},{"ma":"AC.01.01.01.0572","ten":"Joints Ultra cap. @ (DoppelHerz, Đức)","dvt":"Hộp"},{"ma":"AE.01.01.01.0860","ten":"Viên đặt âm đạo Cumlaude lab - Lubripiu Vaginal Ovules 3g (Istituto, Ý)","dvt":"Hộp"},{"ma":"AA.06.04.01.0047","ten":"Ovumix suppo (Elea S.a.c.i.f.y.a; Achentina)","dvt":"viên"},{"ma":"AA.15.01.01.0003","ten":"Betadine VAGINAL10% 125ml (MundiPharma,Cyprus)","dvt":"Chai"},{"ma":"AA.26.01.01.0002","ten":"OreSOL New 4.22g (Bidiphar,VN)","dvt":"Gói"},{"ma":"AE.02.01.01.0085","ten":"Tăm bông Life 200 xoắn","dvt":"Hộp"},{"ma":"AA.13.01.01.0016","ten":"Hồ nước 20g","dvt":"Lọ"},{"ma":"AC.02.01.01.0024","ten":"Nutren Junior 400g (Nestle, Thuỵ Sĩ)","dvt":"Hộp"},{"ma":"AA.18.03.01.0055","ten":"Toujeo solostar 300IU/ml x 1.5ml .(!). (Sanofi,Đức)","dvt":"Bút"},{"ma":"AD.01.01.01.0346","ten":"Latopic Probiotic emollient active Body and Hair Wash Gel (Gel tắm gội) 400ml (Poland)","dvt":"Chai"},{"ma":"AA.06.02.04.0021","ten":"Metronidazol 250mg tab. (DHG, Việt Nam)","dvt":"viên"},{"ma":"AF.01.01.01.0052","ten":"Prevenar 13 0.5ml (Pfizer,SX:Ireland,đóng gói:Bỉ/Anh),hộp 1 bơm tiêm","dvt":"Ống tiêm"},{"ma":"AA.06.04.01.0081","ten":"Terbinafin STELLA 1% 10g cream (Stella, Việt Nam)","dvt":"Tuýp"},{"ma":"AA.21.01.01.0014","ten":"Kary Uni 0,05mg/ml (Santen, Nhật)","dvt":"Chai"},{"ma":"AA.02.01.01.0154","ten":"Etoricoxib Teva 90mg  Tab. (Teva Pharmaceutical Works, Hungary)","dvt":"viên"},{"ma":"AA.28.01.01.0036","ten":"Sancoba Eye Drops (Santen, Nhật)","dvt":"Chai"},{"ma":"AE.01.01.01.0586","ten":"Sterimar BLOCKED Nose Baby 50ml (Fumouze, Pháp)","dvt":"Chai"},{"ma":"AA.17.05.01.0041","ten":"Enterogermina 2 tỷ bào tử/5ml (Opella Healthcare Italy S.R.L, Ý)","dvt":"Ống"},{"ma":"AA.14.02.01.0016","ten":"Omnipaque Iod Inj. 300mg/ml-100ml (GE Healthcare, Ai Len)","dvt":"Chai"},{"ma":"AA.22.01.01.0011","ten":"Mifestad 200mg (Stella, VN)","dvt":"viên"},{"ma":"AC.02.01.01.0062","ten":"Boost glucose control 400g (Nestle, Switzerland)","dvt":"Hộp"},{"ma":"AA.05.01.01.0004","ten":"DePAkine Sol. 200mg/ml-40ml (Sanofi, Thổ Nhĩ Kỳ)","dvt":"Chai"},{"ma":"AA.17.07.01.0020","ten":"Livosil 140mg (UAB\" Aconitum\", Litva)","dvt":"Viên nang"},{"ma":"AA.18.03.01.0050","ten":"NovoRAPID 100IU/ml x 3ml .(!).(Novo Nordisk, Pháp)","dvt":"Bút"},{"ma":"AA.06.02.06.0027","ten":"Vizimtex 500mg (Anfarm hellas, Hy Lạp)","dvt":"Lọ"},{"ma":"AA.04.01.01.0039","ten":"BFS-Naloxone 0.4mg/1ml (CPC1HN, VN)","dvt":"Ống"},{"ma":"AA.25.02.01.0002","ten":"ACEmuc Sac. 200mg (Sanofi,VN)","dvt":"Gói"},{"ma":"AE.01.01.01.0882","ten":"Tonimer ISOTONIC Baby Spray 100 mL@ (ISTITUTO,Ý)","dvt":"Chai"},{"ma":"AA.12.08.01.0070","ten":"CerebrOLYSIN 10ml Inj. (Ever Pharma, Đức)","dvt":"Ống"},{"ma":"AA.04.01.01.0060","ten":"Ephedrine 30mg/10ml.(!).Inj.(Aguettant,Pháp), hộp 10 ống","dvt":"Ống"},{"ma":"AC.01.01.01.0154","ten":"Special kid Zinc 125ml @ (Eric favre, Pháp)","dvt":"Chai"},{"ma":"AC.01.01.01.0519","ten":"PreNan 380g (Nestle, Hà Lan)","dvt":"Hộp"},{"ma":"AA.25.01.01.0023","ten":"Ventolin NEBULES 2.5mg/ 2.5ml (Aspen Bad Oldesloe Gmbh, Đức)","dvt":"Lọ"},{"ma":"AA.06.02.01.0092","ten":"Benzathin benzylpenicilin 1.2 MI.U (VCP, VN)","dvt":"Lọ"},{"ma":"AA.02.04.01.0016","ten":"Zytee 10ml (Raptakos, Ấn Độ)","dvt":"Tuýp"},{"ma":"AA.26.02.01.0103","ten":"Clinoleic 20% 100ml (Baxter S.A, Bỉ)","dvt":"Túi"},{"ma":"AA.17.02.01.0045","ten":"Tanganil 500mg/5ml Vial (Haupt Pharma, Pháp)","dvt":"Ống"},{"ma":"AA.13.01.01.0014","ten":"FuciDIN  2% 15g Cream (Leo, Ireland)","dvt":"Tuýp"},{"ma":"AC.01.01.01.0161","ten":"Special Kid Immunite 125ml @ (Eric favre, Pháp)","dvt":"Chai"},{"ma":"AA.03.01.01.0030","ten":"Bilaxten 20mg (Menarini, Ý)","dvt":"viên"},{"ma":"AA.25.02.01.0022","ten":"Halixol Syrup 3mg/ml-100ml (Egis, Hungary)","dvt":"Chai"},{"ma":"AE.02.01.01.0348","ten":"BVS Diana SENSI Siêu Mỏng Cánh 20","dvt":"Gói"},{"ma":"AA.06.02.07.0025","ten":"Cravit 750mg/150ml (Daiichi-Sankyo,Thái Lan)","dvt":"Chai"},{"ma":"AA.17.05.01.0007","ten":"Hidrasec Children Pwd.30mg (Sophartex, Pháp)","dvt":"Gói"},{"ma":"AA.25.01.01.0048","ten":"CuroST 4mg Sac. (AhnGook, Korea)","dvt":"Gói"},{"ma":"AA.04.01.01.0017","ten":"PHENYlephrine 50mcg/ml .(!).  10ml (Aguettant, France)","dvt":"Ống tiêm"},{"ma":"AA.12.02.01.0019","ten":"BFS-Amiron 150mg/3ml (CPC1 HN,VN)","dvt":"Ống"},{"ma":"AF.01.01.01.0080","ten":"Gene-HBvax 20mcg/1ml (Vabiotech, VN), Hộp 10 lọ","dvt":"Lọ"},{"ma":"AA.26.02.01.0006","ten":"Calci Clorid 500mg/5ml .(!). Inj. (Vinphaco,VN)","dvt":"Ống"},{"ma":"AC.02.01.01.0047","ten":"Boost Optimum 400g (Nestle, Thụy Sỹ)","dvt":"Can"},{"ma":"AA.26.02.01.0060","ten":"Aminoplasmal* 10% 250ml (B.Braun, Đức)","dvt":"Chai"},{"ma":"AA.27.01.01.0148","ten":"Vitamin A 200.000UI cap. (Softgel HealthCare, Ấn Độ)","dvt":"Viên nang"},{"ma":"AA.26.02.01.0051","ten":"Glucose 20% 500ml (FKB, VN)","dvt":"Chai"},{"ma":"AA.06.02.01.0175","ten":"Augmentin ES 600mg/42,9mg/5ml 100ml Susp. (GSK, Pháp)","dvt":"Lọ"},{"ma":"AA.27.01.01.0012","ten":"Ceelin 120ml (United Pharma, VN)","dvt":"Chai"},{"ma":"AA.17.07.01.0005","ten":"EsPUMISAN L 40mg/ml- 30ml (Berlin Chemie, Đức)","dvt":"Chai"},{"ma":"AF.01.01.01.0047","ten":"Imojev 0.5ml (Sanofi Pasteur,Thái Lan ),hộp 1 lọ","dvt":"Lọ"},{"ma":"AA.15.01.01.0025","ten":"MedoRAL 0,2% 250ml (Merap, VN)","dvt":"Chai"},{"ma":"AA.01.01.01.0007","ten":"Emla creme 5g (Recipharm Karlskoga, Thụy Điển)","dvt":"Tuýp"},{"ma":"AA.02.01.01.0008","ten":"Brufen Susp. 100mg/5ml lọ 60ml (Abbott,Indonesia)","dvt":"Chai"},{"ma":"AF.01.01.01.0065","ten":"Influvac Tetra 0.5ml (Abbott, Hà Lan), hộp 1 bơm","dvt":"Ống tiêm"},{"ma":"AA.20.01.01.0030","ten":"Rocuronium Kabi 50mg/5ml .(!). Inj. (FKB, Áo) (TĐ)","dvt":"Lọ"},{"ma":"AA.03.01.01.0003","ten":"Aerius TAB. 5mg (Organon, Bỉ)","dvt":"viên"},{"ma":"AD.01.01.01.0089","ten":"Cicabio Creme 40ml (Dưỡng ẩm phục hồi) (Bioderma, Pháp)","dvt":"Tuýp"},{"ma":"AE.02.01.01.0012","ten":"Tăm bông Life Baby","dvt":"Hộp"},{"ma":"AF.01.01.01.0001","ten":"Avaxim 80U Pediatric 0.5ml (Sanofi, Pháp), hộp 1 bơm tiêm","dvt":"Ống tiêm"},{"ma":"AA.26.01.01.0004","ten":"OreSOL 245 (DHG, VN)","dvt":"Gói"},{"ma":"AF.01.01.01.0087","ten":"Prevenar 20 Inj. Hộp 1 bơm tiêm (Pfizer,Ai Len)","dvt":"Ống tiêm"},{"ma":"AC.02.01.01.0089","ten":"Nan SupremePRO 1 400g (Nestle,Đức)","dvt":"Hộp"},{"ma":"AA.14.03.01.0003","ten":"UBIT tablet 100mg tab. (Otsuka, Nhật Bản)","dvt":"viên"},{"ma":"AA.06.02.07.0028","ten":"Cravit 750mg (Daiichi-Sankyo,Thái Lan)","dvt":"viên"},{"ma":"AA.28.01.01.0290","ten":"Viagra 50mg Tab. (Fareva Amboise, Pháp)","dvt":"viên"},{"ma":"AA.17.01.01.0045","ten":"Yumangel F 1.5g/15ml (Yuhan, Hàn Quốc)","dvt":"Gói"},{"ma":"AA.27.01.01.0107","ten":"Calcium corbiere extra 10ml (Sanofi,VN)","dvt":"Ống"},{"ma":"AD.01.01.01.0749","ten":"Kem BARIÉDERM CICA-CRÈME 40ml (Uriage, Pháp)","dvt":"Tuýp"},{"ma":"AA.06.03.01.0005","ten":"Anaferon for children 3mg (OO NPF, Nga)","dvt":"viên"},{"ma":"AC.01.01.01.0442","ten":"Fucoidan @(Genki Fami, Nhật)","dvt":"Lọ"},{"ma":"AA.02.01.01.0094","ten":"Sara Siro Cam 250mg/5ml-60ml (VIỆT NAM)","dvt":"Chai"},{"ma":"AC.01.01.01.0160","ten":"Special Kid Multivitamines 125ml @ (Eric favre, Pháp)","dvt":"Chai"},{"ma":"AA.06.02.01.0005","ten":"Augmentin TAB. 875mg + 125mg (SmithKline Beecham, Anh)","dvt":"viên"},{"ma":"AA.06.02.01.0109","ten":"Axuka Inj. 1g + 0.2g (Antibiotice,Romani)","dvt":"Lọ"},{"ma":"AE.02.01.01.0473","ten":"Apipro AQUA KID 20ml (Apipharma, Croatia) VAT 8%","dvt":"Hộp"},{"ma":"AA.06.02.01.0026","ten":"Meronem** 1g (ACS Dobfar, Ý)","dvt":"Lọ"},{"ma":"AA.13.01.01.0086","ten":"Hydrocortisone cream 1% - 15g (VCP, VN)","dvt":"Tuýp"},{"ma":"AA.06.02.01.0052","ten":"BIOfazolin 1g (Polpharma, Poland)","dvt":"Chai"},{"ma":"AA.02.01.01.0026","ten":"Gofen 400mg (Mega,Australia)","dvt":"viên"},{"ma":"AA.26.02.01.0009","ten":"Glucose 30% 500ml (FKB, VN)","dvt":"Chai"},{"ma":"AF.01.01.01.0086","ten":"Vaxneuvance 0,5ml  Pre-filled Syringe (MSD, Ireland) Hộp 1 bơm tiêm","dvt":"Ống tiêm"},{"ma":"AA.13.01.01.0102","ten":"Morystale 15g Cream (Aprogen, Korea)","dvt":"Tuýp"},{"ma":"AE.01.01.01.0862","ten":"Viên đặt âm đạo Cumlaude lab - Prebiotic Ovules 3g (Istituto, Ý)","dvt":"Hộp"},{"ma":"AA.11.02.01.0030","ten":"Vinphyton 1mg/1ml (Vinpharco, VN)","dvt":"Ống"},{"ma":"AA.17.05.01.0019","ten":"Zinco 100ml (Berko, Thổ Nhĩ Kỳ)","dvt":"Chai"},{"ma":"AA.17.05.01.0013","ten":"Bioflora 100mg","dvt":"Gói"},{"ma":"AA.07.01.01.0005","ten":"Sumamigren 50mg (Polpharma, Ba Lan)","dvt":"viên"},{"ma":"AF.01.01.01.0088","ten":"MenQuadfi 0,5ml Inj. (Sanofi, Mỹ) H1","dvt":"Lọ"},{"ma":"AA.04.01.01.0057","ten":"Gluthion 600mg pwd Inj. (Lisapharma S.p.A, Italy)","dvt":"Lọ"},{"ma":"AA.12.02.01.0021","ten":"Amiodarona GP 200mg Tab(S.A, Bồ Đào Nha)","dvt":"viên"},{"ma":"AA.02.04.01.0012","ten":"Piascledine 300mg (Laboratoires Expanscience, Pháp)","dvt":"Viên nang"},{"ma":"AA.12.07.01.0001","ten":"CRestor 10mg (IPR Pharma, Mỹ)","dvt":"viên"},{"ma":"AA.06.04.01.0017","ten":"Sporal 100mg (Olic, Thái Lan)","dvt":"Viên nang"},{"ma":"AA.11.04.01.0001","ten":"Gelofusin 4% 500ml (B.Braun,Malaysia)","dvt":"Chai"},{"ma":"AA.17.01.01.0011","ten":"Nexium MUPS Tab.40mg (AstraZeneca, Thụy Điển)","dvt":"viên"},{"ma":"AA.02.01.01.0016","ten":"Efferalgan 500mg SỦI (France)","dvt":"viên"},{"ma":"AA.04.01.01.0009","ten":"NORadrenaline Base 4mg/4ml .(!). (Aguettant, France)","dvt":"Ống"},{"ma":"AA.11.01.01.0014","ten":"I-Sucr-in 100mg/5ml (M/S Samrudh, Ấn Độ)","dvt":"Ống"},{"ma":"AA.21.01.01.0031","ten":"Systane Ultra 5ml (Alcon, Mỹ)","dvt":"Chai"},{"ma":"AA.12.03.01.0018","ten":"CoverSYL 5mg (Servier, Pháp)","dvt":"viên"},{"ma":"AA.06.02.06.0034","ten":"Klacid MR 500mg Tab. (Abbvie S.r.l, Ý)","dvt":"viên"},{"ma":"AA.06.02.07.0050","ten":"Tavanic  500 mg Tab. (Opella Healthcare International SAS, Pháp)","dvt":"viên"},{"ma":"AA.22.01.01.0010","ten":"Mifestad 10mg (Stella, VN)","dvt":"viên"},{"ma":"AA.02.01.01.0023","ten":"Fastum Gel 2.5% 30g (Menarini, Ý)","dvt":"Tuýp"},{"ma":"AA.21.02.01.0028","ten":"Avamys spray 27.5 mcg 120Doses (GSK, Anh)","dvt":"Chai"},{"ma":"AA.06.03.01.0049","ten":"Acyclovir Stella Cream 5g (Stella, Việt Nam)","dvt":"Tuýp"},{"ma":"AA.02.03.01.0004","ten":"ViaRTRIL - S 1500mg (Rottapharm, Ai len)","dvt":"Gói"},{"ma":"AA.06.02.07.0036","ten":"Cravit Inj. 250mg/50ml (Olic,Thái Lan)","dvt":"Chai"},{"ma":"AY.18.03.01.0052","ten":"NovoMIX 30 Flexpen 100U/ml .(!). (Novo Nordisk, France) (AY)","dvt":"Bút"},{"ma":"AA.18.01.01.0018","ten":"Pulmicort Respules 500mcg/2ml (Astrazeneca, Thụy Điển)","dvt":"Ống"},{"ma":"AA.06.03.01.0105","ten":"Alavir-E 25mg + 200mg tab. (Hera, Việt Nam)","dvt":"viên"},{"ma":"AA.06.02.01.0007","ten":"Augmentin SAC.500mg + 62,5mg (Glaxo Wellcome, Pháp)","dvt":"Gói"},{"ma":"AA.12.08.01.0062","ten":"Durapil fort 60mg tab. (SPM, Việt Nam)","dvt":"viên nén"},{"ma":"AA.18.03.01.0080","ten":"Ozempic 0,25mg-0,5mg/ liều (2mg/1,5ml) Inj. prefilled pen (Novo nordisk, Đan Mạch)","dvt":"Bút"},{"ma":"AA.26.02.01.0092","ten":"Natri clorid 3% 100ml .(!). Inj. (FKB, VN)","dvt":"Chai"},{"ma":"AA.17.07.01.0025","ten":"Hepa-merz 5g/10ml (B.Braun Melsungen AG, Đức)","dvt":"Lọ"},{"ma":"AA.06.04.01.0007","ten":"FluoMIZIN 10mg (Rottendorf Pharma, Đức)","dvt":"Thuốc đạn"},{"ma":"AA.06.02.05.0001","ten":"DaLAcin C Cap.300mg (Fareva Amboise, Pháp)","dvt":"Viên nang"},{"ma":"AD.01.01.01.0742","ten":"Sữa rửa vệ sinh Cumlaude lab - LubriPiu Intimate Hygiene 200ml (Istituto, Ý)","dvt":"Chai"},{"ma":"AA.06.02.06.0015","ten":"Zitromax POS Sus 200mg/5ml- 15ml (Haupt Pharma, Ý)","dvt":"Chai"},{"ma":"AA.02.01.01.0009","ten":"CelebrEX 200mg (Pfizer,Puerto Rico)","dvt":"Viên nang"},{"ma":"AF.01.01.01.0005","ten":"InFANrix Hexa 0.5ml - 6in1 (GSK, Bỉ), hộp 1 lọ","dvt":"Hộp"},{"ma":"AA.17.01.01.0046","ten":"AmeBismo 262mg (OPV,VN)","dvt":"viên"},{"ma":"AA.14.02.01.0021","ten":"Omnipaque 300mg/ml x 50ml (GE healthcare Ireland Limited,Ireland)","dvt":"Chai"},{"ma":"AA.18.01.01.0013","ten":"Medrol 16mg (Pfizer, Ý)","dvt":"viên"},{"ma":"AA.26.02.01.0018","ten":"MoriHEPAmin* Inf 200ml 7,58% (AY Pharma, Nhật)","dvt":"Túi"},{"ma":"AA.25.02.01.0016","ten":"BisOLVON Tab. 8mg (Boehringer, Indonesia)","dvt":"viên nén"},{"ma":"AA.02.01.01.0018","ten":"Efferalgan SAC. 150mg (France)","dvt":"Gói"},{"ma":"AF.01.01.01.0008","ten":"MVVAC 5ml (Vaccin phòng bệnh Sởi) (Polyvac, VN), lọ 10 liều","dvt":"Lọ"},{"ma":"AA.06.03.01.0057","ten":"Tafsafe 25mg, Atra/Ấn Độ, B/30","dvt":"viên"},{"ma":"AA.03.01.01.0002","ten":"Aerius SYR 0.5mg/ml-60ml (Organon, Bỉ)","dvt":"Chai"},{"ma":"AA.02.04.01.0040","ten":"Fosamax Plus 70mg/5600IU  Tab. (Rovi Pharma Industrial Services, Tây Ban Nha)","dvt":"viên"},{"ma":"AA.26.02.01.0095","ten":"Magnesi-BFS 15% x 5ml .(!). Inj. (CPC1HN, VN)","dvt":"Lọ"},{"ma":"AA.02.01.01.0001","ten":"Acupan 20mg/2ml (Delpharm Tours, Pháp)","dvt":"Ống"},{"ma":"AA.17.01.01.0012","ten":"Nexium SAC. 10mg (AstraZeneca, Thụy Điển)","dvt":"Gói"},{"ma":"AC.01.01.01.0113","ten":"Special Kid Calcium Vitamine D 125ml @ (Eric favre, Pháp)","dvt":"Chai"},{"ma":"AA.09.01.01.0019","ten":"Harnal Ocas 0,4mg  Tab. (Delpharm, Hà Lan)","dvt":"viên"},{"ma":"AA.22.01.01.0001","ten":"Duratocin 100mcg/1ml (Ferring, Đức)","dvt":"Ống"},{"ma":"AA.01.01.01.0030","ten":"Lignospan Standard .(!).","dvt":"Ống"},{"ma":"AA.06.02.01.0156","ten":"Buflan 2g Pwd. inj. (Medochemie (Viễn Đông), Việt Nam)","dvt":"Lọ"},{"ma":"AA.06.02.07.0007","ten":"Oflovid DROP 0,3% 5ml (Santen, Nhật)","dvt":"Chai"},{"ma":"AF.01.01.01.0097","ten":"Vaxigrip tam giá 0,5ml pre-filled Syringe (Sanofi, Pháp)","dvt":"Ống tiêm"},{"ma":"AA.25.01.01.0006","ten":"Combivent UDV 2.5mg+0.5mg/2,5ml (Laboratoire Unither, Pháp)","dvt":"Ống"},{"ma":"AF.01.01.01.0091","ten":"IVACTUBER Vaccin phòng Lao (BCG) 1ml (IVAC, VN)","dvt":"Ống"},{"ma":"AA.18.01.01.0015","ten":"Mekocetin 0.5mg (Mekophar, VN)","dvt":"viên"},{"ma":"AA.04.01.01.0051","ten":"Kalira 5g sac. (CPC1 Hà Nội, Việt Nam)","dvt":"Gói"},{"ma":"AA.24.01.01.0010","ten":"Diazepam 10mg/2ml .(!). Inj. (Vidipha, VN)","dvt":"Ống"},{"ma":"AA.21.01.01.0028","ten":"Sanlein 0,1% 5ml (Santen, Nhật)","dvt":"Chai"},{"ma":"AA.17.07.01.0053","ten":"LIVOLIN-FORTE Cap. (Mega, Thái Lan)","dvt":"Viên nang"},{"ma":"AA.21.01.01.0062","ten":"Acetazolamid DWP 250mg Tab. (Wealphar, Việt Nam)","dvt":"viên"},{"ma":"AA.12.08.01.0064","ten":"Tadalafil 5mg tab. (Hà Tây, Việt Nam)","dvt":"viên nén"},{"ma":"AA.22.01.01.0017","ten":"MethylErgometrin Maleate 0.2mg/1ml Inj. (Panpharma, Đức)","dvt":"Ống"},{"ma":"AE.02.01.01.0472","ten":"Apipro ORAL 20ml (Apipharma, Croatia) VAT 8%","dvt":"Hộp"},{"ma":"AA.28.01.01.0066","ten":"Meiact Fine Granules 50mg Sac. (Meiji, Nhật Bản)","dvt":"Gói"},{"ma":"AA.01.01.01.0020","ten":"Morphin HYDROCHLORIDE 10mg/1ml .(!). Inj. (Vidipha, VN)","dvt":"Ống"},{"ma":"AA.06.04.01.0090","ten":"Neo-Penotran Forte L 750mg + 200mg + 100mg Vag. tab. (Exeltis llac San.ve tic.A.S., Thổ Nhĩ Kỳ)","dvt":"viên nén"},{"ma":"AA.18.02.01.0048","ten":"Gynoflor","dvt":"viên"},{"ma":"AA.26.02.01.0054","ten":"Glucose 10% 500ml (FKB, VN)","dvt":"Chai"},{"ma":"AF.01.01.01.0021","ten":"Synflorix Inj. 0.5ml (GSK,Belgium),hộp 1 bơm tiêm","dvt":"Ống tiêm"},{"ma":"AA.06.02.09.0003","ten":"Tetracyclin 1% 5g","dvt":"Tuýp"},{"ma":"AA.17.04.01.0006","ten":"ForTRANS Sac. 73.69g (Ipsen, Pháp)","dvt":"Gói"},{"ma":"AA.06.02.02.0004","ten":"Maxitrol DROP 5ml (Alcon, Bỉ)","dvt":"Chai"},{"ma":"AE.01.01.01.0008","ten":"Bơm tiêm có kim 5ml (NT)","dvt":"Chiếc"},{"ma":"AF.01.01.01.0041","ten":"Gene-HBvax 10mcg/0.5ml (Vabiotech, VN), Hộp 10 lọ","dvt":"Lọ"},{"ma":"AA.25.01.01.0022","ten":"Ventolin INH 100mcg 200Dose (Glaxo Wellcome, Tây Ban Nha)","dvt":"Hộp"},{"ma":"AA.17.01.01.0009","ten":"Nexium MUPS Tab.20mg (AstraZeneca, Thụy Điển)","dvt":"viên"},{"ma":"AA.28.01.01.0162","ten":"Meiact 200mg Tab. (Meiji, Tây Ban Nha)","dvt":"viên"},{"ma":"AA.13.01.01.0001","ten":"Acnotin 10mg (Mega, Thái Lan)","dvt":"Viên nang"},{"ma":"AA.01.01.01.0075","ten":"Lidocain-BFS 200mg/ 10ml .(!).  (CPC1 Hanoi, Vietnam)","dvt":"Ống"},{"ma":"AA.15.01.01.0002","ten":"Betadine GARGLE and Mouthwash 1% 125ml (MundiPharma,Cyprus)","dvt":"Chai"},{"ma":"AA.06.02.06.0007","ten":"Klacid FORTE Tab.500mg (AbbVie S.r.l)","dvt":"viên"},{"ma":"AA.17.07.01.0008","ten":"GasMOtin 5mg (Sumitomo, Nhật)","dvt":"viên"},{"ma":"AA.01.01.01.0018","ten":"Marcaine Spinal Heavy 0.5% (5mg/ml) x 4ml .(!). Inj. (Cenexi, Pháp)(TĐ)","dvt":"Ống"},{"ma":"AA.11.02.01.0023","ten":"Vinphyton 10mg/1ml (Vinphaco, VN)","dvt":"Ống"},{"ma":"AA.17.01.01.0038","ten":"Gaviscon Dual Action 10ml Sac. (Reckitt Benckiser,Anh)","dvt":"Gói"},{"ma":"AA.11.02.01.0005","ten":"LOveNox 4.000UI/0.4ml .(!). (Sanofi, Pháp)","dvt":"Ống tiêm"},{"ma":"AA.06.03.01.0073","ten":"Molnupiravir Stella 400mg tab. (Stella, Việt Nam)","dvt":"viên nén"},{"ma":"AC.01.01.01.0518","ten":"Nan expert Pro 380g (Nestle, Hà Lan)","dvt":"Hộp"},{"ma":"AA.06.02.10.0019","ten":"ForLEN** 600mg (Davi Pharm, VN)","dvt":"viên"},{"ma":"AC.01.01.01.0420","ten":"Imochild D3K2 MK-7 20ml @ (HC Clover,TBN)","dvt":"Lọ"},{"ma":"AA.26.02.01.0109","ten":"Mannitol 20% 250ml Inf. (FKB, VN)","dvt":"Chai"},{"ma":"AA.26.03.01.0003","ten":"Nước cất pha tiêm 500ml (FKB, VN)","dvt":"Chai"},{"ma":"AC.01.01.01.0435","ten":"Laminkid I H/20gói @ (DKPharma, Việt Nam)","dvt":"Hộp"},{"ma":"AA.12.03.01.0100","ten":"Exforge 5mg + 80mg Tab. (Siegfried Barbera, S.L., Tây Ban Nha)","dvt":"viên"},{"ma":"AA.06.02.04.0013","ten":"Moretel 500mg/ 100ml (SM Farmaceutici s.r.l, Ý)","dvt":"Chai"},{"ma":"AA.27.01.01.0024","ten":"Magne B6 Corbiere Tab.470mg + 5mg (Sanofi Synthelabo, VN)","dvt":"viên"},{"ma":"AE.01.01.01.0064","ten":"Urgotul 10cm x 10cm","dvt":"Miếng"},{"ma":"AA.18.03.01.0004","ten":"Diamicron MR 30mg (Servier, Pháp)","dvt":"viên"},{"ma":"AA.02.01.01.0136","ten":"Arcoxia 90mg Tab. (Rovi Pharma/Tây Ban Nha)","dvt":"viên"},{"ma":"AC.01.01.01.0364","ten":"Inotir 3g (Italia)","dvt":"Gói"},{"ma":"AA.17.04.01.0002","ten":"Fleet Enema 133ml (C.B.Fleet Company Inc, Mỹ)","dvt":"Chai"},{"ma":"AA.17.03.01.0011","ten":"Vincopane 20mg/1ml (Vĩnh Phúc, VN)","dvt":"Ống"},{"ma":"AE.01.01.01.0168","ten":"Gạc cầu fi 40 x 1 lớp vô trùng (An Lành, VN)","dvt":"Chiếc"},{"ma":"AA.09.01.01.0015","ten":"Avodart 0,5mg Cap (Delpharm Poznań S.A., Ba Lan)","dvt":"Viên nang"},{"ma":"AA.21.02.01.0058","ten":"Elossy infant 0,01% 5ml nasal drop (Dược khoa, Việt Nam)","dvt":"Lọ"},{"ma":"AA.17.05.01.0006","ten":"Hidrasec Infants Pwd.10mg (Sophartex, Pháp)","dvt":"Gói"},{"ma":"AA.19.01.01.0014","ten":"SAT (Huyết thanh kháng uốn ván) 1500IU (IVAC, VN)","dvt":"Ống"},{"ma":"AA.06.02.01.0066","ten":"Ampicillin 1g (Mekophar,VN)","dvt":"Lọ"},{"ma":"AA.06.02.06.0033","ten":"Ambig 500mg Tab. (Sofarimex -Portugal)","dvt":"viên"},{"ma":"AA.27.01.01.0147","ten":"Supvid3 200.000IU 1mL Sol. (Hải Dương, Việt Nam)","dvt":"Ống"},{"ma":"AA.12.07.01.0024","ten":"Livalo 2mg Tab. (Kowa, Nhật Bản)","dvt":"viên"},{"ma":"AA.21.02.01.0051","ten":"Otrivin 0.05% 10ml Nasal Spray (Haleon, Thụy Sĩ)","dvt":"Lọ"},{"ma":"AA.11.02.01.0013","ten":"Xarelto 10mg .(!). Tab. (Bayer, Đức)","dvt":"viên"},{"ma":"AA.06.02.02.0030","ten":"Tobrex 3mg/ml eye drop. (Novartis Manufacturing NV, Bỉ)","dvt":"Lọ"},{"ma":"AE.02.01.01.0491","ten":"Bỉm Moony dán dịu nhẹ Newborn 62 (Unicharm, Nhật Bản)","dvt":"Gói"},{"ma":"AC.01.01.01.0428","ten":"Sifer 1g H/60gói @ (Strapharm, Pháp)","dvt":"Gói"},{"ma":"AC.01.01.01.0390","ten":"AndroSITOL plus (Italia)","dvt":"Gói"},{"ma":"AA.11.02.01.0014","ten":"Xarelto 20mg .(!). Tab. (Bayer, Đức)","dvt":"viên"},{"ma":"AA.27.01.01.0108","ten":"Calcium corbiere extra 5ml (Sanofi,VN)","dvt":"Ống"},{"ma":"AA.06.03.01.0012","ten":"Tamiflu 75mg (Roche, Ý)","dvt":"Viên nang"},{"ma":"AA.02.01.01.0117","ten":"Brosiral 15mg/1,5ml Inj. (Bros ltd, Hy Lạp)","dvt":"Ống"},{"ma":"AA.27.01.01.0076","ten":"Procare Diamond, Lọ 30v (Max Biocare, Úc)","dvt":"Viên nang"},{"ma":"AA.06.02.01.0040","ten":"Tazocin 4.5g (Wyeth Lederle S.R.L, Ý)","dvt":"Lọ"},{"ma":"AA.12.03.01.0102","ten":"Micardis 40mg tab. (Boehringer, Hy Lạp)","dvt":"viên"},{"ma":"AA.21.02.01.0053","ten":"Elossy Baby 0,025% 8ml nasal drop (Dược khoa, Việt Nam)","dvt":"Lọ"},{"ma":"AA.21.01.01.0010","ten":"Flumetholon 0,1% x 5ml (Santen, Nhật)","dvt":"Chai"},{"ma":"AA.06.02.01.0166","ten":"Curam 875mg+125mg Tab. @ (Sandoz GmbH, Áo)","dvt":"viên"},{"ma":"AA.17.05.01.0008","ten":"Lacteol 340mg (Aptalis, Pháp)","dvt":"Gói"},{"ma":"AF.01.01.01.0035","ten":"VAT 0.5ml (Vắcxin uốn ván) (IVAC, VN),hộp 20 ống","dvt":"Ống"},{"ma":"AA.12.03.01.0047","ten":"Twynsta 40mg+5mg (Cipla, Ấn Độ)","dvt":"viên"},{"ma":"AA.26.03.01.0011","ten":"Nước cất pha tiêm 10ml (CPC1, VN)","dvt":"Ống"},{"ma":"AA.28.01.01.0207","ten":"Visanne 2mg (Bayer,Germany)","dvt":"viên"},{"ma":"AA.28.01.01.0131","ten":"SalonSIP Gel Patch (VN)","dvt":"Miếng dán"},{"ma":"AA.21.02.01.0006","ten":"Dorithricin (Medice Arzneimittel Putter, Đức)","dvt":"viên"},{"ma":"AA.06.02.02.0018","ten":"Gentamicin 80mg/2ml Inj. (HDPharma,VN)","dvt":"Ống"},{"ma":"AE.01.01.01.0373","ten":"BD PosiFlush SP Syringe Natri clorid 0.9% 10ml (Becton, Mỹ)","dvt":"Chiếc"},{"ma":"AA.18.03.01.0053","ten":"Jardiance 10mg (Boehringer, Đức)","dvt":"viên"},{"ma":"AA.06.02.06.0025","ten":"Azicine 250mg Cap. (Stella, Việt Nam)","dvt":"Viên nang"},{"ma":"AA.12.07.01.0006","ten":"Lipanthyl Supra Tab.160mg (Recipharm Fontaine, Pháp)","dvt":"viên"},{"ma":"AA.13.01.01.0035","ten":"FuciDIN H Cream 15g (Leo, Ailen)","dvt":"Tuýp"},{"ma":"AA.25.02.01.0005","ten":"Atussin SYRUP 60ml (United Pharma, VN)","dvt":"Chai"},{"ma":"AA.13.01.01.0004","ten":"BiAFINE 93g (Janssen, Pháp)","dvt":"Tuýp"},{"ma":"AA.17.04.01.0001","ten":"DuphaLAC 10g/15ml (Abbott, Hà Lan)","dvt":"Gói"},{"ma":"AA.13.01.01.0065","ten":"Differin Cream 0,1% 30g (Galderma, Pháp)","dvt":"Tuýp"},{"ma":"AA.18.01.01.0054","ten":"PrednISOLONE 5mg (Vĩnh Phúc, VN)","dvt":"viên nén"},{"ma":"AA.13.01.01.0069","ten":"Nước oxy già 3% 50ml (Hải Dương Pharma, VN)","dvt":"Chai"},{"ma":"AA.02.01.01.0063","ten":"Hapacol 150mg (DHG, VN)","dvt":"gói"},{"ma":"AA.18.02.01.0077","ten":"Cyclogest 400mg suppo. (Accord - UK Limited, Anh)","dvt":"Thuốc đạn"},{"ma":"AA.06.02.07.0051","ten":"Ciprobay 500mg Tab. (Bayer, Ý)","dvt":"viên"},{"ma":"AA.20.01.01.0026","ten":"Nivalin 5mg (Sopharma, Bulgari)","dvt":"viên"},{"ma":"AA.12.06.01.0005","ten":"Duoplavin 75/100mg (Sanofi, Pháp)","dvt":"viên"},{"ma":"AA.12.08.01.0061","ten":"Pilixitam 4g/20ml IM/IV Inj. (JSC Farmak, Ukraine)","dvt":"Lọ"},{"ma":"AA.17.02.01.0018","ten":"Zentanil 1g (CPC1 HN, VN)","dvt":"Ống"},{"ma":"AA.18.01.01.0080","ten":"Vinphason 100mg Inj. (Vĩnh phúc,VN)","dvt":"Ống"},{"ma":"AA.27.01.01.0055","ten":"Vitamin B1 Inj. 100mg/1ml (Vĩnh Phúc, VN)","dvt":"Ống"},{"ma":"AA.17.01.01.0040","ten":"Famogast 40mg (Polpharma - Ba Lan)","dvt":"viên"},{"ma":"AA.06.02.06.0026","ten":"ClariTHROMYCINE Stella 250mg (VN)","dvt":"viên nén"},{"ma":"AA.01.01.01.0005","ten":"Diprivan 1% 200mg/20ml (Corden, Ý) (TĐ)","dvt":"Ống"},{"ma":"AF.01.01.01.0094","ten":"Gene-HBvax 10mcg/0.5ml Inj. Khuyến mãi (Vabiotech, VN)","dvt":"Lọ"},{"ma":"AA.06.02.01.0154","ten":"IMERIXX 200 200mg Tab. (Imexpharm, VN)","dvt":"viên"},{"ma":"AA.01.01.01.0103","ten":"Propofol-Lipuro 2% 50ml Inj. (B. Braun, Đức) (TĐ)","dvt":"Chai"},{"ma":"AA.18.03.01.0011","ten":"GlucoPHAGE 500mg (Merck Sante, Pháp)","dvt":"viên"},{"ma":"AA.17.04.01.0009","ten":"Ovalax 5mg (Traphaco, VN)","dvt":"viên"},{"ma":"AA.18.03.01.0049","ten":"Xigduo XR 10mg/500mg (AZN, Mỹ)","dvt":"viên"},{"ma":"AA.17.05.01.0039","ten":"Imodium 2mg Cap (Lusomedicamenta, Portugal)","dvt":"Viên nang"},{"ma":"AE.01.01.01.0766","ten":"Tonimer Lab Normal Spray 125mL @ VAT 5% (Istituto, Ý)","dvt":"Hộp"},{"ma":"AA.12.03.01.0066","ten":"Uperio 50mg (Novartis, Singapore)","dvt":"viên"},{"ma":"AA.12.02.01.0006","ten":"Procoralan 7,5mg (Servier, Pháp)","dvt":"viên"},{"ma":"AA.12.02.01.0005","ten":"Procoralan 5mg (Servier, Pháp)","dvt":"viên"},{"ma":"AA.06.04.01.0030","ten":"Terbisil 250mg (Santa Farma, Thổ Nhĩ Kỹ)","dvt":"viên"},{"ma":"AA.09.01.01.0018","ten":"Vesicare 5mg  Tab. (Delpharm, Hà Lan)","dvt":"viên"},{"ma":"AA.17.02.01.0047","ten":"Nausazy 4mg/5ml oral sol. (CPC1 Hà Nội, Việt Nam)","dvt":"Ống"},{"ma":"AA.06.02.08.0015","ten":"Bixazol (200mg+ 40mg) 10ml oral sus. (CPC1 HN, VN)","dvt":"Ống"},{"ma":"AA.21.01.01.0063","ten":"Natri Clorid 0,9% drop. 10ml (Hải dương, VN)","dvt":"Lọ"},{"ma":"AA.06.02.01.0006","ten":"Augmentin SAC.250mg + 31,25mg (Glaxo Wellcome, Pháp)","dvt":"Gói"},{"ma":"AA.27.01.01.0027","ten":"MethyCoBAL Tab. 500mcg (Bushu, Nhật)","dvt":"viên"},{"ma":"AA.16.01.01.0031","ten":"Vinzix 40mg/4ml Inj. (Vĩnh Phúc, Việt Nam)","dvt":"Ống"},{"ma":"AA.25.01.01.0062","ten":"Atersin  (1.5mg + 66.5mg)/ 5ml Sol. (An Thiên, Việt Nam)","dvt":"Ống"},{"ma":"AA.01.01.01.0012","ten":"FREsofol Mct/Lct 1% 20ml (Fresenius, Áo) (TĐ)","dvt":"Lọ"},{"ma":"AA.12.03.01.0070","ten":"Viacoram 3.5mg/2.5mg (Servier, Ireland)","dvt":"viên"},{"ma":"AA.18.03.01.0054","ten":"Jardiance DUO 12,5mg/850mg (Boehringer,GERMANY)","dvt":"viên"},{"ma":"AC.01.01.01.0567","ten":"Thực phẩm dinh dưỡng y học Prother 10g Pwd (Biodue SpA, Ý)","dvt":"Gói"},{"ma":"AA.06.02.07.0061","ten":"Quinovid Ophthalmic Ointment 0,3% 3,5g (Hanlim, Hàn Quốc)","dvt":"Tuýp"},{"ma":"AA.17.01.01.0017","ten":"Phosphalugel 20g (Pharmatis, Pháp)","dvt":"Gói"},{"ma":"AA.17.02.01.0012","ten":"Ondansetron-BFS 8mg/4ml (CPC1, VN)","dvt":"Ống"},{"ma":"AA.18.04.01.0006","ten":"LEVOthyrox 50mcg (Merck, Đức)","dvt":"viên"},{"ma":"AA.11.02.01.0009","ten":"Transamin INJ. 5% 250mg/5ml (Olic, Thái Lan)","dvt":"Ống"},{"ma":"AA.11.02.01.0017","ten":"Xarelto 15mg .(!). Tab. (Bayer, Đức)","dvt":"viên"},{"ma":"AA.02.01.01.0011","ten":"Decolgen ND 500mg (United Pharma, VN)","dvt":"viên"},{"ma":"AA.12.03.01.0013","ten":"Co-Diovan 80mg/12.5mg (Novartis, Ý)","dvt":"viên"},{"ma":"AA.06.02.01.0042","ten":"Unasyn 1500mg Pwd. inj. (HauPT Pharma, Ý)","dvt":"Lọ"},{"ma":"AA.05.01.01.0010","ten":"NeuRONTIN 300mg (Pfizer, Đức)","dvt":"Viên nang"},{"ma":"AA.12.03.01.0007","ten":"BetaLOC Zok 25mg (AstraZeneca, Thụy Điển)","dvt":"viên"},{"ma":"AA.06.04.01.0020","ten":"NYST rơ miệng 25000 IU (OPC, VN)","dvt":"Gói"},{"ma":"AA.02.01.01.0055","ten":"VOLtaren SUPPO.100mg (Delpharm Huningue, Pháp)","dvt":"Thuốc đạn"},{"ma":"AA.06.04.01.0012","ten":"Neo-TERgynan 500mg+ 65000UI+ 100000UI (Sophartex, Pháp)","dvt":"viên"},{"ma":"AA.17.07.01.0040","ten":"Ursobil 300mg (ITALIA)","dvt":"viên nén"},{"ma":"AA.13.01.01.0013","ten":"FuciCORT Cream 15g (Leo, Ai len)","dvt":"Tuýp"},{"ma":"AA.18.02.01.0059","ten":"Femoston 1/10mg (Abbott,Hà lan)","dvt":"viên"},{"ma":"AA.12.03.01.0133","ten":"Uperio 200mg Tab. (Novartis Farma SpA, Ý)","dvt":"viên"},{"ma":"AA.05.01.01.0009","ten":"Lyrica 75 mg (Pfizer, Đức)","dvt":"Viên nang"},{"ma":"AA.12.03.01.0067","ten":"Uperio 100mg (Novartis, Singapore)","dvt":"viên"},{"ma":"AA.11.02.01.0010","ten":"Transamin TAB. 500mg (Olic, Thái Lan)","dvt":"viên"},{"ma":"AA.21.02.01.0050","ten":"Otrivin 0.1% 10ml Nasal Spray (Haleon, Thụy Sĩ)","dvt":"Lọ"},{"ma":"AE.01.01.01.0058","ten":"Urgo Durable 102's (Urgo, Thái Lan)","dvt":"Miếng"},{"ma":"AA.21.02.01.0042","ten":"Aladka nasal spray 15ml (DK pharma, VN)","dvt":"Chai"},{"ma":"AA.17.01.01.0010","ten":"Nexium INJ. 40mg (AstraZeneca, Thụy Điển)","dvt":"Lọ"},{"ma":"AA.12.03.01.0076","ten":"Viacoram 7mg/5mg (Servier,Iceland)","dvt":"viên"},{"ma":"AA.26.02.01.0037","ten":"Ringerfundin 500ml (B.Braun, Đức)","dvt":"Chai"},{"ma":"AA.24.04.01.0022","ten":"Velaxin 75mg cap. (Egis pharma, Hungary)","dvt":"Viên nang"},{"ma":"AA.18.02.01.0075","ten":"Utrogestan 200mg Cap (Cyndea Pharma S.L, Tây Ban Nha)","dvt":"Viên nang"},{"ma":"AA.17.03.01.0001","ten":"Buscopan Tab.10mg (Delpharm Reims, Pháp)","dvt":"viên"},{"ma":"AA.12.08.01.0045","ten":"Piracetam Egis 800mg (Egis, Hungary)","dvt":"viên"},{"ma":"AA.17.03.01.0005","ten":"No-spa TAB.40mg (Sanofi Aventis, VN)","dvt":"viên"},{"ma":"AA.12.02.01.0003","ten":"Cordarone Tab.200mg (Sanofi, Pháp)","dvt":"viên"},{"ma":"AA.06.03.01.0051","ten":"Acyclovir Stella Tab.400mg, Hộp 35viên (Stella, VN)","dvt":"viên"},{"ma":"AA.11.05.01.0028","ten":"Jadenu 180mg  Tab. (Sandoz S.R.L., Romania )","dvt":"viên nén"},{"ma":"AA.12.08.01.0034","ten":"TebONin 120mg (German)","dvt":"viên"},{"ma":"AA.24.03.01.0007","ten":"Seroquel XR 50mg (AstraZeneca, Anh)","dvt":"viên"},{"ma":"AD.01.01.01.0618","ten":"Bioderma Sebium Gel Moussant Actif 200ml (Gel rửa mặt tạo bọt cho da hỗn hợp hoặc da dầu) (Naos Les Laboratoires, Pháp)","dvt":"Tuýp"},{"ma":"AA.12.03.01.0098","ten":"Diovan 160mg Tab. (Siegfried Barbera, S.L., Tây Ban Nha)","dvt":"viên"},{"ma":"AA.02.02.01.0009","ten":"Allopurinol 300mg (Stella, VN)","dvt":"viên"},{"ma":"AA.12.03.01.0072","ten":"Captopril Stella 25mg tab. (Stella, Việt Nam)","dvt":"viên"},{"ma":"AE.01.01.01.0792","ten":"Tonimer HYPERTONIC 18 single doses @ (Istituto, Italia)","dvt":"Ống"},{"ma":"AF.01.01.01.0046","ten":"Hexaxim 0.5ml (Sanofi, Pháp),hộp 1 bơm tiêm","dvt":"Ống tiêm"},{"ma":"AA.20.01.01.0008","ten":"Myonal Tab 50mg (Eisai, Nhật)","dvt":"viên"},{"ma":"AC.01.01.01.0392","ten":"Memoptic (France)","dvt":"viên"},{"ma":"AA.09.01.01.0002","ten":"Xatral XL 10mg (Sanofi, Pháp)","dvt":"viên"},{"ma":"AA.10.01.01.0011","ten":"Madopar 250mg tab. (Roche, Ý)","dvt":"viên"},{"ma":"AA.06.02.08.0016","ten":"Allsilver 1% 15g cream (Glenmark - Ấn Độ)","dvt":"Tuýp"},{"ma":"AA.01.01.01.0071","ten":"Midazolam 5mg/1ml .(!). Inj.  (B.Braun, Đức)","dvt":"Ống"},{"ma":"AC.01.01.01.0497","ten":"Coenzym Q10 DoppelHelz Cap. H30v (Queisser Pharma, Đức)","dvt":"viên"},{"ma":"AA.18.03.01.0042","ten":"Jardiance 25mg (Boehringer Ingelheim, Đức)","dvt":"viên"},{"ma":"AA.13.01.01.0109","ten":"Oratane 20mg cap. (Douglas Manufacturing Limited, New Zealand)","dvt":"Viên nang"},{"ma":"AC.01.01.01.0434","ten":"TP Bổ gan Kanzou Ukon H/90v @ (Genki Fami, Nhật)","dvt":"Hộp"},{"ma":"AA.02.01.01.0031","ten":"Movepain 30mg/1ml (PT. Novell Pharma, Indonesia)","dvt":"Ống"},{"ma":"AA.25.02.01.0039","ten":"Prospan Cough Syrup 85ml (Engelhard,Đức)","dvt":"Chai"},{"ma":"AA.12.07.01.0005","ten":"Lipanthyl NT Tab.145mg (Fournier Laboratoires, Ai len)","dvt":"viên"},{"ma":"AA.12.06.01.0008","ten":"Plavix 75 mg (Sanofi, Pháp)","dvt":"viên"},{"ma":"AC.01.01.01.0431","ten":"Cavidan K2 H/30v @ (Solepharm, Latvia)","dvt":"Hộp"},{"ma":"AA.12.03.01.0135","ten":"Exforge HCT 5mg/160mg/12.5mg Tab. (Siegfried Barbera, S.L., Tây Ban Nha)","dvt":"viên"},{"ma":"AA.25.02.01.0036","ten":"Nobstruct 300mg/3ml (DP TW2, VN)","dvt":"Ống"},{"ma":"AA.17.07.01.0061","ten":"Elthon 50mg Tab. (Katsuyama, Nhật)","dvt":"viên"},{"ma":"AA.12.03.01.0048","ten":"Twynsta 80mg+5mg (Cipla, Ấn Độ)","dvt":"viên"},{"ma":"AA.26.02.01.0024","ten":"Natri clorid FKB 0.9% 100ml (FKB, Việt Nam)","dvt":"Chai"},{"ma":"AA.06.02.04.0012","ten":"Metronidazol Stella 250mg Tab. (Stella, Việt Nam)","dvt":"viên"},{"ma":"AA.25.03.01.0002","ten":"Broncho Vaxom Children 3.5mg (OM Pharma, Thụy Sỹ)","dvt":"Viên nang"},{"ma":"AA.01.01.01.0083","ten":"Fentanyl B.Braun 0.1mg/2ml .(!). Inj. (Bbraun, Đức)","dvt":"Lọ"},{"ma":"AA.17.02.01.0029","ten":"Kanausin 10mg (DP Khánh Hòa ,VN)","dvt":"viên nén"},{"ma":"AA.12.06.01.0039","ten":"Eliquis 2,5mg .(!). Tab. (Pfizer, Ireland)","dvt":"viên"},{"ma":"AA.12.03.01.0017","ten":"CoverAM 5mg+5mg (Servier, Ailen)","dvt":"viên"},{"ma":"AA.12.07.01.0002","ten":"CRestor 20mg (IPR Pharma, Mỹ)","dvt":"viên"},{"ma":"AA.06.03.01.0054","ten":"Tefostad T300 300mg (Stella, VN)","dvt":"viên nén"},{"ma":"AC.01.01.01.0418","ten":"Aktiv-Meno (Germany)","dvt":"viên"},{"ma":"AA.12.03.01.0103","ten":"Micardis 80mg tab. (Boehringer, Hy Lạp)","dvt":"viên"},{"ma":"AA.18.03.01.0046","ten":"Jardiance DUO 12,5mg/1000mg","dvt":"viên"},{"ma":"AA.12.03.01.0054","ten":"CoverAM 10mg+10mg (Servier, Ai len)","dvt":"viên"},{"ma":"AA.18.02.01.0007","ten":"Cyclo Progynova 2mg (Bayer, Đức)","dvt":"viên nén"},{"ma":"AA.12.03.01.0019","ten":"CoverSYL PLUS 5mg+1.25mg (Servier, Pháp)","dvt":"viên"},{"ma":"AC.01.01.01.0433","ten":"TP Ngừa đột quỵ Nattou Ichou H/90v @ (Genki Fami, Nhật)","dvt":"Hộp"},{"ma":"AA.17.02.01.0005","ten":"Motilium M Tab.10mg (Olic, Thái Lan)","dvt":"viên"},{"ma":"AA.12.03.01.0008","ten":"BetaLOC ZOK 50mg (AstraZeneca, Thụy Điển)","dvt":"viên"},{"ma":"AA.06.03.01.0052","ten":"Acyclovir Stella Tab.800mg, Hộp 35viên (Stella, VN)","dvt":"viên"},{"ma":"AA.12.03.01.0036","ten":"Nebilet 5mg (Berlin Chemie, Đức)","dvt":"viên"},{"ma":"AA.03.01.01.0021","ten":"Chlorpheniramin Mekophar 4mg (VN)","dvt":"viên"},{"ma":"AD.01.01.01.0206","ten":"Bepanthen Balm 30g (Famar SA, Hy Lạp)","dvt":"Tuýp"},{"ma":"AA.17.05.01.0012","ten":"Smecta (Orange-Vanilla) 3g (Ipsen, France) hộp 30 gói","dvt":"Gói"},{"ma":"AA.24.03.01.0020","ten":"Sulpiride 50mg (Stella, VN)","dvt":"Viên nang"},{"ma":"AA.02.01.01.0017","ten":"Efferalgan CODEIN 30mg+500mg sủi (France)","dvt":"viên"},{"ma":"AC.01.01.01.0533","ten":"Hyaluronic Forte 300mg cap. (Martin Healthcare, Pháp)","dvt":"Viên nang"},{"ma":"AA.12.03.01.0124","ten":"Carvestad 6.25 tab (Stella, Việt Nam)","dvt":"Viên nén"},{"ma":"AA.02.01.01.0020","ten":"Efferalgan SUPPO. 150mg (France)","dvt":"Thuốc đạn"},{"ma":"AA.12.03.01.0134","ten":"Exforge HCT 10mg/160mg/12.5mg Tab. (Siegfried Barbera, S.L., Tây Ban Nha)","dvt":"viên"},{"ma":"AA.03.01.01.0043","ten":"Bilaxten 10mg tab. (Menarini, Ý)","dvt":"viên"},{"ma":"AA.03.01.01.0013","ten":"Stugeron 25mg (Olic, Thái Lan)","dvt":"viên"},{"ma":"AE.01.01.01.0505","ten":"PEGinpol 5g (S.I.I.T.HS F Liquid S.r.l, Ý)","dvt":"Gói"},{"ma":"AA.18.02.01.0045","ten":"Valiera 2mg Tab. (Laboratorios Recalcine, Chi Lê)","dvt":"viên"},{"ma":"AA.22.01.01.0006","ten":"Oxytocin 5IU/ml .(!). Inj. (Gedeon Richter,Hungary)","dvt":"Ống"},{"ma":"AE.02.01.01.0191","ten":"Khẩu trang trẻ em 3D Mask (Unicharm, Nhật Bản)","dvt":"Chiếc"},{"ma":"AE.01.01.01.0678","ten":"Nova 1947 Microclismi 3g (Aeffe, Ý) VAT5","dvt":"Tuýp"},{"ma":"AA.18.01.01.0002","ten":"DEPO Medrol 40mg/1ml (Pfizer, Bỉ)","dvt":"Lọ"},{"ma":"AC.02.01.01.0134","ten":"Materintel 3g sac. (Traphaco CNC, Việt Nam)","dvt":"Gói"},{"ma":"AA.12.07.01.0025","ten":"Atozet 10mg/20mg Tab. (MSD, Hà Lan)","dvt":"viên"},{"ma":"AA.26.01.01.0005","ten":"Hydrite unflavor","dvt":"Gói"},{"ma":"AC.04.01.01.0001","ten":"TP Dầu gan cá mập Omega-3 H/90v @ (Genki Fami, Nhật) VAT8","dvt":"Hộp"},{"ma":"AC.01.01.01.0112","ten":"Infogoss 3g (IAP, VN)","dvt":"Gói"},{"ma":"AA.01.01.01.0046","ten":"Lidocain hydrochlorid 2% 2ml .(!).  (Hải Dương, VN)","dvt":"Ống"},{"ma":"AA.11.01.01.0001","ten":"FerLATUM 40mg/15 ml (Italfarmaco, Tây Ban Nha)","dvt":"Lọ"},{"ma":"AA.12.03.01.0052","ten":"Adalat LA 30mg (Bayer, Đức)","dvt":"viên"},{"ma":"AA.26.02.01.0052","ten":"Lactate Ringer & Dextrose 5% 500ml (FKB, VN)","dvt":"Chai"},{"ma":"AA.18.03.01.0036","ten":"FORxiga 10mg (AstraZeneca, Mỹ)","dvt":"viên"},{"ma":"AA.26.02.01.0105","ten":"Natri clorid 0.9% 1000ml (FKB, VN)","dvt":"Chai"},{"ma":"AA.17.04.01.0015","ten":"Stiprol 9g (Dược Hà Tĩnh, VN)","dvt":"Tuýp"},{"ma":"AA.12.07.01.0052","ten":"Ezoleta 10mg tab. (KRKA, D.D., Novo Mesto, Slovenia)","dvt":"viên"},{"ma":"AA.12.01.01.0010","ten":"VAStareL MR 35mg (Servier, Pháp)","dvt":"viên"},{"ma":"AA.27.01.01.0016","ten":"Enat 400UI (Mega, Thái Lan)","dvt":"Viên nang"},{"ma":"AA.12.03.01.0026","ten":"Exforge 10/160mg (Novartis, Tây Ban Nha)","dvt":"viên"},{"ma":"AA.15.01.01.0001","ten":"Betadine ANTISEPTIC 10% 125ml (Mundipharma, Cyprus)","dvt":"Chai"},{"ma":"AE.01.01.01.0009","ten":"Bông y tế cắt miếng 2x2 cm 50g (Bạch Tuyết) (VMTC)","dvt":"gói"},{"ma":"AA.17.02.01.0026","ten":"Vincomid 10mg/2ml (Vĩnh phúc,VN)","dvt":"Ống"},{"ma":"AA.25.02.01.0011","ten":"Neo - CODion 25 mg +100 mg +20 mg (Sophartex, Pháp)","dvt":"viên"},{"ma":"AA.06.02.02.0031","ten":"Maxitrol eye OINT. (1mg + 3500IU + 6000IU)/gram (Novartis Manufacturing NV, Belgium)","dvt":"Tuýp"},{"ma":"AA.09.01.01.0006","ten":"Domitazol (Domesco,VN)","dvt":"viên"},{"ma":"AA.28.01.01.0273","ten":"Dung dịch rửa vết thương Natri clorid 0,9% 500ml (HD pharma, Việt Nam)","dvt":"Chai"},{"ma":"AA.16.01.01.0007","ten":"Verospiron 50mg (Gedeon Richter, Hungary)","dvt":"Viên nang"},{"ma":"AA.12.03.01.0012","ten":"Co-Diovan 160mg/25mg (Novartis, Ý)","dvt":"viên"},{"ma":"AA.12.03.01.0011","ten":"Co-Aprovel 300/12.5mg (Sanofi, Pháp)","dvt":"viên"},{"ma":"AA.12.03.01.0010","ten":"Co-Aprovel 150mg/12.5mg (Sanofi, Pháp)","dvt":"viên nén"},{"ma":"AA.02.01.01.0146","ten":"Veinofytol 50mg cap (Tilman S.A, Bỉ)","dvt":"Viên nang"},{"ma":"AA.17.01.01.0060","ten":"Nolpaza 20mg Tab. (KRKA, d.d., Novo mesto, Slovenia)","dvt":"viên nén"},{"ma":"AA.25.01.01.0056","ten":"Elumast 4 mg sac. (Laboratorios Cinfa, Spain)","dvt":"Gói"},{"ma":"AE.01.01.01.0252","ten":"Băng dính lụa 2.5cm x 9.1m 15381 (3M, Đức)","dvt":"Chiếc"},{"ma":"AE.01.01.01.0131","ten":"NeilMed SR 120 Premixed Sachets - muối rửa mũi người lớn (USA)","dvt":"Gói"},{"ma":"AA.18.02.01.0010","ten":"DuphaSTON 10mg (Abbott, Hà Lan)","dvt":"viên"},{"ma":"AA.25.01.01.0066","ten":"Singulair Tab. 10mg (Organon Pharma, UK)","dvt":"viên"},{"ma":"AE.01.01.01.0145","ten":"Gạc phẫu thuật 10 cm x 10 cm x 12 lớp (An Lành, VN)","dvt":"Miếng"},{"ma":"AC.01.01.01.0424","ten":"Bificure 1.5g H/20gói @ (Sankyo, Nhật Bản)","dvt":"Gói"},{"ma":"AA.18.04.01.0005","ten":"LEVOthyrox 100mcg (Merck, Đức)","dvt":"viên"},{"ma":"AA.02.01.01.0076","ten":"Paracetamol B.Braun 1000mg/100ml (B.Braun, Tây Ban Nha)","dvt":"Chai"},{"ma":"AA.28.01.01.0029","ten":"Nabifar 5g (Pharmedic, VN)","dvt":"gói"},{"ma":"AA.12.03.01.0015","ten":"Concor 5mg (Merck, Đức)","dvt":"viên"},{"ma":"AA.21.01.01.0027","ten":"Refresh Tears Lubricant eye drops 0,5% x 15ml","dvt":"Lọ"},{"ma":"AA.28.01.01.0055","ten":"Dasbrain H30v (Catalent, Úc)","dvt":"viên nén"},{"ma":"AA.28.01.01.0008","ten":"Ketosteril* Tab. (Labesfal - Laboratorios Almiro,Bồ Đào Nha)","dvt":"viên"},{"ma":"AA.18.03.01.0005","ten":"Diamicron MR 60mg (Servier, Pháp)","dvt":"viên"},{"ma":"AA.27.01.01.0047","ten":"Rutin - Vitamin C 100mg (Mekophar, VN)","dvt":"viên"},{"ma":"AA.12.07.01.0026","ten":"Caduet 5mg/20mg Tab. (Pfizer, Đức)","dvt":"viên"},{"ma":"AA.24.03.01.0014","ten":"Olanxol 10mg (Danapha, VN)","dvt":"viên nén"},{"ma":"AA.02.03.01.0007","ten":"Flexsa 1500mg (Mega Liferciences,Australia)","dvt":"Gói"},{"ma":"AA.27.01.01.0073","ten":"Vitamin B2 2mg (Traphaco, VN)","dvt":"viên"},{"ma":"AA.18.02.01.0028","ten":"Orgametril 5mg (Organon, Hà Lan)","dvt":"viên"},{"ma":"AA.18.04.01.0011","ten":"LEVOthyrox 75 mcg tab. (Merck , Đức)","dvt":"viên"},{"ma":"AA.26.02.01.0035","ten":"Ringer Lactat 500ml (FKB, VN)","dvt":"Chai"},{"ma":"AA.02.02.01.0007","ten":"DOchicin 1mg (Domesco, VN)","dvt":"viên nén"},{"ma":"AA.24.01.01.0007","ten":"Stresam 50mg (Biocodex, Pháp)","dvt":"Viên nang"},{"ma":"AA.02.01.01.0022","ten":"Efferalgan SUPPO. 80mg (France)","dvt":"Thuốc đạn"},{"ma":"AA.02.01.01.0037","ten":"Panadol EXTRA viên nén","dvt":"viên"},{"ma":"AA.02.01.01.0153","ten":"Etoricoxib Teva 60mg  Tab. (Teva Pharmaceutical Works, Hungary)","dvt":"viên"},{"ma":"AE.02.01.01.0445","ten":"Nước muối rửa Văn Lang 0,9% 500ml VTYT","dvt":"Chai"},{"ma":"AA.02.03.01.0001","ten":"ARTRodar 50mg (TRB Pharma, Argentina)","dvt":"viên"},{"ma":"AF.01.01.01.0092","ten":"MMR II & Diluent Inj 0.5ml (MSD, Mỹ), hộp 5 lọ","dvt":"Lọ"},{"ma":"AA.06.04.01.0021","ten":"CANesten Cream 1% 20g (Encube Ethicals Private, Ấn Độ)","dvt":"Tuýp"},{"ma":"AA.24.01.01.0006","ten":"StiLUX 60mg (Traphaco,Việt Nam)","dvt":"viên"},{"ma":"AA.26.02.01.0031","ten":"Panangin Tab.140mg+158mg (Gedeon Richter, Hungary)","dvt":"viên"},{"ma":"AA.03.01.01.0001","ten":"aDREnALin 1mg/ml .(!).  (Vinh Phuc,Vietnam)","dvt":"Ống"},{"ma":"AA.18.02.01.0076","ten":"Regulon 150mcg+30mcg Tab. (Gedeon Richter Plc, Hungary)","dvt":"viên"},{"ma":"AA.06.03.01.0095","ten":"Acyclovir Stella Tab.200mg, Hộp 50viên (Stella, VN)","dvt":"viên nén"},{"ma":"AA.17.01.01.0015","ten":"Pariet 20mg (Bushu Pharma, Nhật)","dvt":"viên"},{"ma":"AA.05.01.01.0024","ten":"Zopistad 7.5mg (Stella, VN)","dvt":"viên"},{"ma":"AA.12.03.01.0059","ten":"Amlor TAB.5mg (Pfizer)","dvt":"viên"},{"ma":"AA.12.03.01.0099","ten":"Diovan 80mg Tab. (Siegfried Barbera, S.L., Tây Ban Nha)","dvt":"viên"},{"ma":"AA.21.02.01.0026","ten":"BetaSERC 24mg (Mylan, Pháp)","dvt":"viên"},{"ma":"AA.12.03.01.0073","ten":"Nifedipin T20 Retard 20mg (Stella,VN)","dvt":"viên"},{"ma":"AA.02.01.01.0081","ten":"ARCoxia 120mg (Fross Iberica, Tây Ban Nha)","dvt":"viên"},{"ma":"AE.01.01.01.0025","ten":"Gạc hút dịch rỉ vết thương 5x5cm","dvt":"Miếng"},{"ma":"AA.26.02.01.0033","ten":"Potassium Chloride proamp 0.1g/ml x 10ml .(!). Inj. (Aguettant, Pháp)","dvt":"Ống"},{"ma":"AA.26.01.01.0011","ten":"Kalium chloratum 500mg (Biomedica, Séc)","dvt":"viên"},{"ma":"AA.17.06.01.0002","ten":"Daflon 500 mg (Servier, Pháp)","dvt":"viên"},{"ma":"AD.01.01.01.0335","ten":"Ceradan SOOTHING Gel (Gel dưỡng da) 50g  (Toshiki International Singapore PTE Ltd,Singapore)","dvt":"Tuýp"},{"ma":"AA.18.03.01.0019","ten":"JanuMET 50mg/1000mg (Patheon, Puerto Rico)","dvt":"viên"},{"ma":"AA.01.01.01.0057","ten":"Fentanyl-hameln 500mcg/10ml .(!). Inj. (Hameln, Đức)","dvt":"Lọ"},{"ma":"AA.07.01.01.0008","ten":"FluZINstad 5mg (Stella,VN)","dvt":"viên"},{"ma":"AA.18.04.01.0003","ten":"Thyrozol 5mg (Merck, Đức)","dvt":"viên"},{"ma":"AA.16.01.01.0006","ten":"Verospiron 25mg (Gedeon Richter, Hungary)","dvt":"viên"},{"ma":"AA.17.05.01.0048","ten":"Enterogermina 4 tỷ/5 ml Susp. (Opella Healthcare Italy S.R.L, Italia)","dvt":"Ống"},{"ma":"AA.02.01.01.0097","ten":"Nefolin 30mg (Medochemie,Cyprus)","dvt":"viên"},{"ma":"AD.01.01.01.0492","ten":"Rudondo New 120ml (Quang Xanh,Việt Nam)","dvt":"Chai"},{"ma":"AA.12.03.01.0101","ten":"Cozaar 50mg Tab. (Organon Pharma, Anh)","dvt":"viên"},{"ma":"AA.03.01.01.0055","ten":"Hadumedrol 10mg/1ml Inj. (Hải Dương,VN)","dvt":"Ống"},{"ma":"AA.18.01.01.0026","ten":"SilKRON Cream 10g (Dongkwang, Hàn Quốc)","dvt":"Tuýp"},{"ma":"AA.28.01.01.0262","ten":"Pracetam 800mg tab. (Stellapharm, Việt Nam)","dvt":"viên"},{"ma":"AE.02.01.01.0110","ten":"Khẩu trang ngăn virut 3D Mask, (Nhật Bản)","dvt":"Chiếc"},{"ma":"AA.18.03.01.0034","ten":"JanuMET 50mg/850mg (Patheon, Puerto Rico)","dvt":"viên"},{"ma":"AA.12.03.01.0132","ten":"Anvo-Telmisartan HCTZ 40mg/12,5mg Tab. (Laboratorios Liconsa, Tây Ban Nha)","dvt":"viên"},{"ma":"AF.01.01.01.0070","ten":"VariLRIx 0,5ml (Glaxo SK,Belgium)","dvt":"Lọ"},{"ma":"AA.27.01.01.0103","ten":"Scanneuron (Stella, VN)","dvt":"viên"},{"ma":"AA.18.01.01.0014","ten":"Medrol 4mg (Pfizer, Ý)","dvt":"viên"},{"ma":"AA.02.02.01.0013","ten":"Forgout 40mg (Foripharm, VN)","dvt":"viên"},{"ma":"AA.18.03.01.0015","ten":"GlucoPHAGE XR Tab 750mg (Merck Sante, Pháp)","dvt":"viên"},{"ma":"AA.02.01.01.0064","ten":"Hapacol 250mg (DHG, VN)","dvt":"gói"},{"ma":"AE.01.01.01.0234","ten":"Regelle 6.5g (Kora, Ai Len)","dvt":"Tuýp"},{"ma":"AA.12.07.01.0008","ten":"Lipitor 20mg (Pfizer, Mỹ)","dvt":"viên"},{"ma":"AA.12.03.01.0014","ten":"Concor COR 2.5mg (Merck, Đức)","dvt":"viên"},{"ma":"AA.17.07.01.0004","ten":"EsPUMISAN Cap. 40mg (Catalent, Đức)","dvt":"Viên nang"},{"ma":"AA.20.01.01.0035","ten":"Vinstigmin 0.5mg/1ml (Vĩnh Phúc, VN) (TĐ)","dvt":"Ống"},{"ma":"AA.06.02.02.0024","ten":"Selemycin 250mg/2ml (Medochemie, Cyprus)","dvt":"Ống"},{"ma":"AA.06.02.08.0012","ten":"Cotrimoxazole Stella 400/80 (Stella, VN)","dvt":"viên"},{"ma":"AA.16.01.01.0013","ten":"Vinzix 40mg (Vinphaco, VN)","dvt":"viên"},{"ma":"AA.25.02.01.0006","ten":"Atussin TAB. 10mg (United Pharma, VN)","dvt":"viên"},{"ma":"AA.12.03.01.0025","ten":"Dopegyt 250mg (Egis, Hungary)","dvt":"viên"},{"ma":"AA.12.07.01.0007","ten":"Lipitor 10mg (Pfizer, Mỹ)","dvt":"viên"},{"ma":"AF.01.01.01.0024","ten":"Typhim VI 0,5ml (Sanofi, Pháp),hộp 1 bơm tiêm","dvt":"Ống tiêm"},{"ma":"AA.22.01.01.0012","ten":"Misoprostol Stella 200mcg (Stella, VN)","dvt":"viên"},{"ma":"AC.01.01.01.0526","ten":"Enzymax kids sac. (Indusen S.A, Tây Ban Nha)","dvt":"Gói"},{"ma":"AA.06.04.01.0061","ten":"Chimitol Tab 500mg (Chunggei, Korea)","dvt":"viên"},{"ma":"AA.26.02.01.0025","ten":"Natri clorid 0.9% 500ml (FKB, VN)","dvt":"Chai"},{"ma":"AA.21.02.01.0049","ten":"Otrivin 0,05% 10ml Nas. drop. (Haleon CH SARL , Thụy Sĩ)","dvt":"Lọ"},{"ma":"AA.17.03.01.0006","ten":"No-spa INJ.40mg/2ml (Chinoin Pharma, Hungary)","dvt":"Ống"},{"ma":"AA.17.07.01.0059","ten":"Sylhepgan 500mg Cap (Nam Hà, Việt Nam)","dvt":"Viên nang"},{"ma":"AA.25.01.01.0051","ten":"ZenSALBU  nebules 2.5mg/2.5ml (CPC1 HN,Việt Nam)","dvt":"Ống"},{"ma":"AE.01.01.01.0070","ten":"Que thử thai Quick Stick One Step Pregnancy Test (NT)","dvt":"Chiếc"},{"ma":"AA.27.01.01.0017","ten":"Enervon C (United Pharma, VN)","dvt":"viên"},{"ma":"AA.18.03.01.0020","ten":"JanuMET 50mg/500mg (Patheon, Puerto Rico)","dvt":"viên"},{"ma":"AA.17.02.01.0042","ten":"Tanganil 500mg Tab. (Pierre Fabre, Pháp)","dvt":"viên"},{"ma":"AA.13.01.01.0055","ten":"Derimucin 5g (DP TW2, VN)","dvt":"Tuýp"},{"ma":"AA.16.01.01.0022","ten":"Furosemide 40mg Tab. (Stella, VN)","dvt":"viên"},{"ma":"AE.01.01.01.0896","ten":"Sufrin 5ml (Syntech pharm,Việt Nam) VAT5","dvt":"Ống"},{"ma":"AA.18.01.01.0092","ten":"Valgesic 10mg tab (Medisun, Việt Nam)","dvt":"viên"},{"ma":"AA.13.01.01.0038","ten":"Rocimus 0.1% w/w","dvt":"Tuýp"},{"ma":"AA.03.01.01.0033","ten":"Cetirizine Stella 10mg (VN)","dvt":"viên"},{"ma":"AA.06.02.01.0069","ten":"OspAMOX 500mg (Imexpharm, Áo)","dvt":"Viên nang"},{"ma":"AA.01.01.01.0003","ten":"ATRopin sulphate 0.25mg/ml (Vĩnh Phúc,VN)","dvt":"Ống"},{"ma":"AA.02.01.01.0021","ten":"Efferalgan SUPPO. 300mg (France)","dvt":"Thuốc đạn"},{"ma":"AA.01.01.01.0093","ten":"Vinropin 0,5% 10ml .(!). Inj. (Vĩnh Phúc, Việt Nam) (TĐ)","dvt":"Ống"},{"ma":"AC.01.01.01.0507","ten":"Ocean Health Vitamin D3 1000IU Cap. (Pan-Malayan, Singapore)","dvt":"Viên nang"},{"ma":"AA.11.01.01.0004","ten":"Tardyferon B9 (Pierre Fabre, Pháp)","dvt":"viên"},{"ma":"AA.17.07.01.0002","ten":"Debridat 100mg (Farmea, Pháp)","dvt":"viên"},{"ma":"AC.01.01.01.0404","ten":"Cic-Zinc Tab. (Hankintatukku, Phần Lan)","dvt":"viên"},{"ma":"AA.28.01.01.0048","ten":"Suprane 240ml (Baxter, Mỹ)","dvt":"ml"},{"ma":"AA.24.04.01.0001","ten":"Amitriptyline 25mg (Việt Nam)","dvt":"viên nén"},{"ma":"AA.27.01.01.0041","ten":"PM NextG Cal (Probiotec Pharma, Úc)","dvt":"Viên nang"},{"ma":"AA.18.03.01.0033","ten":"Trajenta 5mg (Boehringer, Mỹ)","dvt":"viên"},{"ma":"AA.06.02.04.0008","ten":"Tinidazol Domesco 500mg (VN)","dvt":"viên nén"},{"ma":"AA.26.02.01.0013","ten":"Glucose 5% 500ml (FKB,VN)","dvt":"Chai"},{"ma":"AA.01.01.01.0082","ten":"Ketamine 50mg/ml x 10ml .(!). Inj.(Panpharma, Đức)","dvt":"Lọ"},{"ma":"AA.01.01.01.0045","ten":"Sevoflurane 250ml (Baxter, Mỹ)","dvt":"ml"},{"ma":"AA.06.03.01.0104","ten":"Hetegravir 50mg tab. (Hera, Việt Nam)","dvt":"viên"},{"ma":"AA.12.03.01.0022","ten":"Cozaar XQ 5mg/50mg (Hanmi Pharm, Hàn Quốc)","dvt":"viên"},{"ma":"AA.12.06.01.0004","ten":"Aspilet 80mg (United Pharma, VN)","dvt":"viên"},{"ma":"AA.06.04.01.0006","ten":"Diflucan 150mg (Pfizer, Pháp)","dvt":"Viên nang"},{"ma":"AA.05.01.01.0029","ten":"Garnotal 10mg (Danapha, VN)","dvt":"viên"},{"ma":"AA.24.01.01.0005","ten":"Seduxen 5mg Tab. (Gedeon Richter, Hungary)","dvt":"viên"},{"ma":"AA.02.01.01.0053","ten":"VOLtaren INJ.75mg/3ml (Lek Pharma, Slovenia)","dvt":"Ống"},{"ma":"AA.18.03.01.0044","ten":"Xigduo XR 10mg/1000mg (AZN, Mỹ)","dvt":"viên"},{"ma":"AA.12.06.01.0024","ten":"Vincerol 1mg .(!). Tab. (Vĩnh Phúc,VN)","dvt":"viên"},{"ma":"AA.06.02.09.0008","ten":"Tetracyclin 500mg (Domesco, VN)","dvt":"Viên nang"},{"ma":"AA.06.02.09.0013","ten":"Tetracycline 500mg (Mekophar, VN)","dvt":"Viên nang"}];
+
+let db = null;
+let firebaseReady = false;
+try{
+  if(firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY"){
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    firebaseReady = true;
+  }
+}catch(e){ console.error(e); firebaseReady = false; }
+
+let catalog = {};
+let barcodeIndex = {};
+let khoList = [];
+let currentKho = null;
+let currentNguoi = "";
+let lyThuyetCache = {};
+let ketQuaCache = {};
+let recentScans = [];
+let printQueue = [];
+let currentTab = 'kho';
+let camStream = null, camRAF = null, quaggaBusy = false;
+let scanAssignMa = null;
+
+/* ============================= INIT ============================= */
+async function init(){
+  if(!firebaseReady){
+    document.getElementById('setupScreen').classList.remove('hidden');
+    return;
+  }
+  document.getElementById('appRoot').classList.remove('hidden');
+
+  // catalog
+  const catSnap = await db.collection('thuoc').get();
+  if(catSnap.empty){
+    // seed from bundled default list (first-time setup)
+    await seedCatalog();
+  }else{
+    catSnap.forEach(doc=>{ const d = doc.data(); catalog[doc.id] = {ten:d.ten||'', dvt:d.dvt||'', barcode:d.barcode||null}; });
+  }
+  rebuildBarcodeIndex();
+
+  // kho list
+  const khoSnap = await db.collection('kho').get();
+  khoList = [];
+  khoSnap.forEach(doc=> khoList.push({id:doc.id, name:doc.data().name}));
+
+  // personal prefs stay on this device only
+  currentKho = localStorage.getItem('kk_last_kho') || null;
+  if(currentKho && !khoList.find(k=>k.id===currentKho)) currentKho = null;
+  currentNguoi = localStorage.getItem('kk_ten_nguoi') || '';
+
+  updateHeaderPills();
+  if(currentKho) await loadKhoData(currentKho);
+  showTab('kho');
+}
+
+async function seedCatalog(){
+  toast('Đang khởi tạo danh mục thuốc lần đầu...');
+  const chunks = [];
+  for(let i=0;i<DEFAULT_CATALOG_ARRAY.length;i+=450) chunks.push(DEFAULT_CATALOG_ARRAY.slice(i,i+450));
+  for(const chunk of chunks){
+    const batch = db.batch();
+    chunk.forEach(d=>{
+      const ref = db.collection('thuoc').doc(sanitizeId(d.ma));
+      batch.set(ref, {ma:d.ma, ten:d.ten, dvt:d.dvt, barcode:null});
+      catalog[d.ma] = {ten:d.ten, dvt:d.dvt, barcode:null};
+    });
+    await batch.commit();
+  }
+  toast('Đã khởi tạo '+DEFAULT_CATALOG_ARRAY.length+' thuốc vào cơ sở dữ liệu');
+}
+
+function sanitizeId(s){ return (s||'').toString().replace(/\//g,'_').slice(0,300) || 'x'; }
+function rebuildBarcodeIndex(){
+  barcodeIndex = {};
+  Object.keys(catalog).forEach(ma=>{ const b=catalog[ma].barcode; if(b) barcodeIndex[b]=ma; });
+}
+function slugify(str){
+  return str.toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/gi,'d')
+    .toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'') || 'kho';
+}
+function updateHeaderPills(){
+  const khoName = currentKho ? (khoList.find(k=>k.id===currentKho)||{}).name : null;
+  document.getElementById('khoPillText').textContent = khoName || 'Chưa chọn';
+  document.getElementById('nguoiPillText').textContent = currentNguoi || 'Chưa có tên';
+  document.getElementById('khoPill').classList.toggle('warn', !currentKho);
+  document.getElementById('nguoiPill').classList.toggle('warn', !currentNguoi);
+}
+
+let toastTimer=null;
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+/* ============================= TABS ============================= */
+function showTab(tab){
+  stopCamera();
+  currentTab = tab;
+  document.querySelectorAll('.tabbar button').forEach(b=> b.classList.toggle('active', b.dataset.tab===tab));
+  const main = document.getElementById('main');
+  if(tab==='kho') main.innerHTML = renderKhoTab();
+  else if(tab==='danhmuc'){ main.innerHTML = renderDanhMucTab(); afterRenderDanhMuc(); }
+  else if(tab==='kiemke') main.innerHTML = renderKiemKeTab();
+  else if(tab==='baocao') main.innerHTML = renderBaoCaoTab();
+  window.scrollTo(0,0);
+}
+
+/* ============================= TAB: KHO ============================= */
+function renderKhoTab(){
+  let rows = khoList.map(k=>{
+    const active = k.id===currentKho;
+    return `<div class="list-row" onclick="selectKho('${escAttr(k.id)}')">
+      <div><div class="name">${esc(k.name)} ${active?'✅':''}</div></div>
+      <button class="btn-sm btn-danger" onclick="event.stopPropagation();deleteKho('${escAttr(k.id)}')">Xoá</button>
+    </div>`;
+  }).join('') || `<div class="empty-state">Chưa có kho nào. Thêm kho đầu tiên bên dưới.</div>`;
+  return `
+  <div class="card">
+    <h3>Danh sách kho</h3>
+    <div class="desc">Chọn kho đang làm việc — dữ liệu kiểm kê được lưu tách riêng theo từng kho, dùng chung cho mọi người truy cập app.</div>
+    ${rows}
+  </div>
+  <div class="card">
+    <h3>Thêm kho mới</h3>
+    <div class="field"><input type="text" id="newKhoName" placeholder="VD: Kho chính, Kho lẻ khoa Cấp cứu..."></div>
+    <button class="btn-primary btn-block" onclick="addKho()">+ Thêm kho</button>
+  </div>
+  <div class="card">
+    <h3>Người kiểm kê</h3>
+    <div class="desc">Tên này ghi kèm mỗi lần lưu kết quả, lưu riêng trên thiết bị này.</div>
+    <div class="field"><input type="text" id="tenNguoiInput" value="${escAttr(currentNguoi)}" placeholder="Họ tên người kiểm kê"></div>
+    <button class="btn-secondary btn-block" onclick="saveTenNguoi()">Lưu tên</button>
+  </div>
+  `;
+}
+async function addKho(){
+  const inp = document.getElementById('newKhoName');
+  const name = inp.value.trim();
+  if(!name){ toast('Nhập tên kho'); return; }
+  const id = slugify(name);
+  if(khoList.find(k=>k.id===id)){ toast('Kho đã tồn tại'); return; }
+  await db.collection('kho').doc(id).set({name});
+  khoList.push({id, name});
+  await selectKho(id);
+  showTab('kho');
+  toast('Đã thêm kho: '+name);
+}
+async function deleteKho(id){
+  const k = khoList.find(x=>x.id===id);
+  if(!confirm('Xoá kho "'+(k?k.name:id)+'" khỏi danh sách? (Dữ liệu kiểm kê cũ vẫn còn trong cơ sở dữ liệu, chỉ ẩn khỏi danh sách chọn)')) return;
+  await db.collection('kho').doc(id).delete();
+  khoList = khoList.filter(x=>x.id!==id);
+  if(currentKho===id){ currentKho=null; localStorage.removeItem('kk_last_kho'); updateHeaderPills(); }
+  showTab('kho');
+}
+async function selectKho(id){
+  currentKho = id;
+  localStorage.setItem('kk_last_kho', id);
+  updateHeaderPills();
+  await loadKhoData(id);
+  toast('Đang làm việc tại: '+((khoList.find(k=>k.id===id)||{}).name||id));
+  showTab('kho');
+}
+async function saveTenNguoi(){
+  const v = document.getElementById('tenNguoiInput').value.trim();
+  if(!v){ toast('Nhập tên'); return; }
+  currentNguoi = v;
+  localStorage.setItem('kk_ten_nguoi', v);
+  updateHeaderPills();
+  toast('Đã lưu tên người kiểm kê');
+}
+function openNguoiModal(){ showTab('kho'); setTimeout(()=>document.getElementById('tenNguoiInput')?.focus(),100); }
+
+async function loadKhoData(khoId){
+  lyThuyetCache = {};
+  const ltSnap = await db.collection('kho').doc(khoId).collection('lythuyet').get();
+  ltSnap.forEach(doc=> lyThuyetCache[doc.id] = doc.data());
+  ketQuaCache = {};
+  const kqSnap = await db.collection('kho').doc(khoId).collection('ketqua').get();
+  kqSnap.forEach(doc=> ketQuaCache[doc.id] = doc.data());
+}
+
+/* ============================= TAB: DANH MUC / MA ============================= */
+function renderDanhMucTab(){
+  return `
+  <div class="card">
+    <h3>Tra cứu &amp; gán mã cho thuốc</h3>
+    <div class="desc">Tìm thuốc theo mã hoặc tên. Thuốc đã có mã vạch bao bì → gán mã vạch. Thuốc chưa có → tạo mã QR để in dán tại vị trí.</div>
+    <div class="search-box"><input type="text" id="dmSearch" placeholder="Nhập mã thuốc hoặc tên thuốc..." oninput="renderDmList()"></div>
+    <div id="dmList" style="max-height:52vh;overflow-y:auto;"></div>
+  </div>
+  <div class="card" id="dmDetailCard" style="display:none;"></div>
+  <div class="card">
+    <h3>Thêm thuốc mới</h3>
+    <div class="desc">Thêm từng thuốc mới vào danh mục dùng chung.</div>
+    <div class="field"><label>Mã thuốc</label><input type="text" id="newMaThuoc" placeholder="VD: AA.06.02.10.9999"></div>
+    <div class="field"><label>Tên thuốc</label><input type="text" id="newTenThuoc" placeholder="VD: Paracetamol 500mg"></div>
+    <div class="field"><label>Đơn vị tính</label><input type="text" id="newDvtThuoc" placeholder="VD: viên"></div>
+    <button class="btn-primary btn-block" onclick="addThuocMoi()">+ Thêm vào danh mục</button>
+  </div>
+  <div class="card">
+    <h3>Cập nhật danh mục hàng loạt từ Excel</h3>
+    <div class="desc">Dùng khi có nhiều thuốc mới cùng lúc. File cần cột: Mã thuốc, Tên thuốc, Đơn vị tính — giống định dạng file danh mục ban đầu. Thuốc đã có mã sẽ chỉ cập nhật tên/ĐVT, không mất mã vạch đã gán.</div>
+    <input type="file" id="danhMucFile" accept=".xlsx,.xls,.csv" onchange="importDanhMucFile(event)">
+  </div>
+  <div class="card" id="printQueueCard"></div>
+  `;
+}
+async function addThuocMoi(){
+  const ma = document.getElementById('newMaThuoc').value.trim();
+  const ten = document.getElementById('newTenThuoc').value.trim();
+  const dvt = document.getElementById('newDvtThuoc').value.trim();
+  if(!ma || !ten){ toast('Nhập ít nhất Mã thuốc và Tên thuốc'); return; }
+  if(catalog[ma]){ toast('Mã thuốc này đã tồn tại trong danh mục'); return; }
+  const rec = {ma, ten, dvt, barcode:null};
+  await db.collection('thuoc').doc(sanitizeId(ma)).set(rec);
+  catalog[ma] = {ten, dvt, barcode:null};
+  toast('Đã thêm thuốc: '+ten);
+  document.getElementById('newMaThuoc').value='';
+  document.getElementById('newTenThuoc').value='';
+  document.getElementById('newDvtThuoc').value='';
+  renderDmList();
+}
+async function importDanhMucFile(evt){
+  const file = evt.target.files[0]; if(!file) return;
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, {type:'array', cellDates:true});
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:false, defval:''});
+  let headerRowIdx=0, colMa=0, colTen=1, colDvt=2;
+  for(let i=0;i<Math.min(rows.length,3);i++){
+    const r = rows[i].map(c=>(''+c).toLowerCase());
+    const idxMa = r.findIndex(c=>(c.includes('mã')&&c.includes('thuốc'))||c.includes('ma thuoc')||c==='mã');
+    if(idxMa>=0){
+      headerRowIdx=i; colMa=idxMa;
+      colTen = r.findIndex(c=>c.includes('tên')); colTen = colTen>=0?colTen:1;
+      colDvt = r.findIndex(c=>c.includes('đơn vị')||c.includes('don vi')||c.includes('dvt')); colDvt = colDvt>=0?colDvt:2;
+      break;
+    }
+  }
+  const items = []; let soMoi=0, soCapNhat=0;
+  for(let i=headerRowIdx+1;i<rows.length;i++){
+    const r = rows[i]; const ma = (r[colMa]||'').toString().trim(); if(!ma) continue;
+    const ten = (r[colTen]||'').toString().trim();
+    const dvt = (r[colDvt]||'').toString().trim();
+    if(catalog[ma]) soCapNhat++; else soMoi++;
+    items.push([ma, {ma, ten, dvt}]);
+    catalog[ma] = {ten, dvt, barcode: catalog[ma]?.barcode || null};
+  }
+  const chunks = []; for(let i=0;i<items.length;i+=450) chunks.push(items.slice(i,i+450));
+  for(const chunk of chunks){
+    const batch = db.batch();
+    chunk.forEach(([ma,rec])=> batch.set(db.collection('thuoc').doc(sanitizeId(ma)), rec, {merge:true}));
+    await batch.commit();
+  }
+  rebuildBarcodeIndex();
+  toast('Đã thêm '+soMoi+' thuốc mới, cập nhật '+soCapNhat+' thuốc');
+  showTab('danhmuc');
+}
+function afterRenderDanhMuc(){ renderDmList(); renderPrintQueue(); }
+function renderDmList(){
+  const q = (document.getElementById('dmSearch')?.value||'').toLowerCase().trim();
+  const el = document.getElementById('dmList');
+  if(!el) return;
+  let entries = Object.keys(catalog).map(ma=>({ma, ...catalog[ma]}));
+  if(q) entries = entries.filter(e=> e.ma.toLowerCase().includes(q) || (e.ten||'').toLowerCase().includes(q));
+  entries = entries.slice(0,60);
+  if(entries.length===0){ el.innerHTML = '<div class="empty-state">Không tìm thấy thuốc phù hợp.</div>'; return; }
+  el.innerHTML = entries.map(e=>`
+    <div class="list-row" onclick="openDmDetail('${escAttr(e.ma)}')">
+      <div><div class="name">${esc(e.ten||'(chưa có tên)')}</div><div class="code">${esc(e.ma)} &middot; ${esc(e.dvt||'')}</div></div>
+      <span class="badge ${e.barcode?'ok':'no'}">${e.barcode?'Đã có mã vạch':'Chưa có mã'}</span>
+    </div>`).join('');
+}
+function openDmDetail(ma){
+  const item = catalog[ma]; if(!item) return;
+  const card = document.getElementById('dmDetailCard');
+  card.style.display = 'block';
+  card.innerHTML = `
+    <h3>${esc(item.ten||ma)}</h3>
+    <div class="desc" style="font-family:var(--mono);">${esc(ma)} &middot; ${esc(item.dvt||'')}</div>
+    ${item.barcode ? `<div class="lythuyet-box"><div>Mã vạch đã gán<b style="font-family:var(--mono);font-size:12px;">${esc(item.barcode)}</b></div></div>` : ''}
+    <button class="btn-primary btn-block" onclick="startAssignBarcode('${escAttr(ma)}')">📷 Quét mã vạch bao bì để gán</button>
+    <button class="btn-secondary btn-block" onclick="queueQr('${escAttr(ma)}')">➕ Thêm vào danh sách in mã QR</button>
+    <button class="link-btn" onclick="closeDmDetail()">Đóng</button>`;
+  card.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+function closeDmDetail(){ document.getElementById('dmDetailCard').style.display='none'; }
+function queueQr(ma){ if(!printQueue.includes(ma)) printQueue.push(ma); toast('Đã thêm vào danh sách in: '+(catalog[ma]?.ten||ma)); renderPrintQueue(); }
+function removeFromQueue(ma){ printQueue = printQueue.filter(x=>x!==ma); renderPrintQueue(); }
+function renderPrintQueue(){
+  const el = document.getElementById('printQueueCard'); if(!el) return;
+  if(printQueue.length===0){ el.innerHTML=''; return; }
+  el.innerHTML = `
+    <h3>Danh sách chờ in mã QR (${printQueue.length})</h3>
+    <div class="desc">Mỗi mã QR mã hoá đúng mã thuốc. In ra và dán tại vị trí để thuốc tương ứng.</div>
+    <div class="qr-grid" id="qrPreviewGrid"></div>
+    <button class="btn-primary btn-block" onclick="openPrintSheet()">🖨️ In danh sách này</button>
+    <button class="btn-secondary btn-block" onclick="printQueue=[];renderPrintQueue();">Xoá danh sách chờ in</button>`;
+  const grid = document.getElementById('qrPreviewGrid');
+  printQueue.forEach(ma=>{
+    const item = catalog[ma]||{ten:ma};
+    const tile = document.createElement('div'); tile.className='qr-tile';
+    const canvas = document.createElement('canvas'); tile.appendChild(canvas);
+    const nameDiv = document.createElement('div'); nameDiv.className='qtn'; nameDiv.textContent=item.ten||ma; tile.appendChild(nameDiv);
+    const codeDiv = document.createElement('div'); codeDiv.className='qtc'; codeDiv.textContent=ma; tile.appendChild(codeDiv);
+    const rm = document.createElement('button'); rm.className='link-btn'; rm.style.fontSize='10px'; rm.textContent='Bỏ khỏi danh sách'; rm.onclick=()=>removeFromQueue(ma); tile.appendChild(rm);
+    grid.appendChild(tile);
+    try{ new QRious({element:canvas, value:ma, size:180, level:'M'}); }catch(e){}
+  });
+}
+function openPrintSheet(){
+  const w = window.open('', '_blank');
+  let body = printQueue.map(ma=>{
+    const item = catalog[ma]||{ten:ma};
+    return `<div class="lbl"><canvas id="c-${ma.replace(/[^a-zA-Z0-9]/g,'')}"></canvas><div class="lname">${escHtml(item.ten||'')}</div><div class="lcode">${escHtml(ma)}</div></div>`;
+  }).join('');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>In mã QR thuốc</title>
+  <style>body{font-family:sans-serif;margin:0;padding:14px;}.sheet{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}.lbl{border:1px dashed #999;border-radius:8px;padding:8px;text-align:center;break-inside:avoid;}.lbl canvas{width:100%;height:auto;}.lname{font-size:10px;font-weight:700;margin-top:4px;line-height:1.25;}.lcode{font-size:9px;color:#555;font-family:monospace;}@media print{.noprint{display:none;}}</style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"><\/script>
+  </head><body><button class="noprint" onclick="window.print()" style="margin-bottom:10px;padding:8px 14px;">In trang này</button>
+  <div class="sheet">${body}</div>
+  <script>${printQueue.map(ma=>`try{ new QRious({element:document.getElementById('c-${ma.replace(/[^a-zA-Z0-9]/g,'')}'), value:${JSON.stringify(ma)}, size:220, level:'M'}); }catch(e){}`).join('\n')}<\/script>
+  </body></html>`);
+  w.document.close();
+}
+
+/* ============================= CAMERA / SCANNING ============================= */
+async function startCamera(videoElId, onFrame){
+  const video = document.getElementById(videoElId);
+  try{ camStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment', width:{ideal:1280}, height:{ideal:960}}}); }
+  catch(e){ toast('Không truy cập được camera: '+e.message); return false; }
+  video.srcObject = camStream; await video.play();
+  const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d',{willReadFrequently:true});
+  let lastBarcodeAttempt = 0;
+  function tick(){
+    if(!camStream) return;
+    if(video.videoWidth){
+      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+      ctx.drawImage(video,0,0,canvas.width,canvas.height);
+      try{
+        const imgData = ctx.getImageData(0,0,canvas.width,canvas.height);
+        const qr = jsQR(imgData.data, imgData.width, imgData.height);
+        if(qr && qr.data){ onFrame(qr.data,'qr'); return; }
+      }catch(e){}
+      const now = Date.now();
+      if(!quaggaBusy && now-lastBarcodeAttempt>650){
+        lastBarcodeAttempt = now; quaggaBusy = true;
+        try{
+          Quagga.decodeSingle({src:canvas.toDataURL('image/png'), numOfWorkers:0, inputStream:{size:800},
+            decoder:{readers:['ean_reader','ean_8_reader','code_128_reader','code_39_reader','upc_reader']}},
+            function(result){ quaggaBusy=false; if(result && result.codeResult && result.codeResult.code){ onFrame(result.codeResult.code,'barcode'); } });
+        }catch(e){ quaggaBusy=false; }
+      }
+    }
+    camRAF = requestAnimationFrame(tick);
+  }
+  camRAF = requestAnimationFrame(tick);
+  return true;
+}
+function stopCamera(){ if(camRAF) cancelAnimationFrame(camRAF); camRAF=null; if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; } }
+
+function startAssignBarcode(ma){ scanAssignMa = ma; openScanModal('Quét mã vạch: '+(catalog[ma]?.ten||ma), handleScanResultAssign); }
+async function handleScanResultAssign(value, type){
+  closeScanModal();
+  catalog[scanAssignMa].barcode = value;
+  rebuildBarcodeIndex();
+  await db.collection('thuoc').doc(sanitizeId(scanAssignMa)).set({barcode:value}, {merge:true});
+  toast('Đã gán mã: '+value);
+  if(currentTab==='danhmuc'){ renderDmList(); openDmDetail(scanAssignMa); }
+}
+function openScanModal(title, onResult){
+  const overlay = document.createElement('div'); overlay.className='modal-overlay'; overlay.id='scanModalOverlay';
+  overlay.innerHTML = `<div class="modal-sheet" style="position:relative;">
+    <button class="close-x" onclick="closeScanModal()">✕</button>
+    <h3>${esc(title)}</h3>
+    <div class="scan-wrap"><video id="scanVideo" autoplay playsinline muted></video><div class="scan-frame"></div><div class="scan-line"></div><div class="scan-status" id="scanStatusTxt">Đang tìm mã QR / mã vạch...</div></div>
+    <small class="hint">Đưa mã vào giữa khung hình. App sẽ tự nhận diện.</small></div>`;
+  document.body.appendChild(overlay);
+  startCamera('scanVideo', (value,type)=>{ document.getElementById('scanStatusTxt').textContent='Đã đọc: '+value; onResult(value,type); });
+}
+function closeScanModal(){ stopCamera(); const o=document.getElementById('scanModalOverlay'); if(o) o.remove(); }
+
+/* ============================= TAB: KIEM KE ============================= */
+function renderKiemKeTab(){
+  if(!currentKho) return `<div class="card"><div class="empty-state">Vui lòng chọn kho ở tab "Kho" trước khi kiểm kê.</div><button class="btn-primary btn-block" onclick="showTab('kho')">Chọn kho</button></div>`;
+  if(!currentNguoi) return `<div class="card"><div class="empty-state">Vui lòng nhập tên người kiểm kê ở tab "Kho" trước.</div><button class="btn-primary btn-block" onclick="showTab('kho')">Nhập tên</button></div>`;
+  const khoName = (khoList.find(k=>k.id===currentKho)||{}).name || currentKho;
+  const soLyThuyet = Object.keys(lyThuyetCache).length, soDaKiem = Object.keys(ketQuaCache).length;
+  return `
+  <div class="card">
+    <h3>1. Nhập file lý thuyết</h3>
+    <div class="desc">File Excel gồm: Mã thuốc, Tên thuốc, Số lượng tồn (lý thuyết), Hạn sử dụng (lý thuyết). Áp dụng cho kho <b>${esc(khoName)}</b>.</div>
+    <input type="file" id="lyThuyetFile" accept=".xlsx,.xls,.csv" onchange="importLyThuyet(event)">
+    <small class="hint">Đã có ${soLyThuyet} dòng lý thuyết &middot; ${soDaKiem} thuốc đã kiểm.</small>
+  </div>
+  <div class="card">
+    <h3>2. Quét kiểm kê</h3>
+    <div class="desc">Quét mã QR dán tại vị trí, hoặc mã vạch trên bao bì thuốc.</div>
+    <button class="btn-primary btn-block" onclick="startKiemKeScan()">📷 Bắt đầu quét</button>
+    <button class="link-btn" onclick="openManualEntry()">Không quét được? Nhập thủ công</button>
+  </div>
+  <div class="card" id="kiemKeResultCard" style="display:none;"></div>
+  <div class="card"><h3>Vừa kiểm gần đây</h3><div id="recentScanList">${renderRecentScans()}</div></div>`;
+}
+function renderRecentScans(){
+  if(recentScans.length===0) return `<div class="empty-state">Chưa có thuốc nào được kiểm trong phiên này.</div>`;
+  return recentScans.slice(0,8).map(ma=>{
+    const kq = ketQuaCache[ma]; if(!kq) return '';
+    const lech = (kq.slThucTe-(kq.slLyThuyet||0));
+    return `<div class="list-row"><div><div class="name">${esc(kq.ten||ma)}</div><div class="code">${esc(ma)}</div></div>
+    <span class="badge ${lech===0?'ok':'no'}">${lech===0?'Khớp':(lech>0?'Thừa '+lech:'Thiếu '+Math.abs(lech))}</span></div>`;
+  }).join('');
+}
+async function importLyThuyet(evt){
+  const file = evt.target.files[0]; if(!file) return;
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, {type:'array', cellDates:true});
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:false, defval:''});
+  let headerRowIdx=0, colMa=0, colTen=1, colSl=2, colHsd=3;
+  for(let i=0;i<Math.min(rows.length,3);i++){
+    const r = rows[i].map(c=>(''+c).toLowerCase());
+    const idxMa = r.findIndex(c=>(c.includes('mã')&&c.includes('thuốc'))||c.includes('ma thuoc')||c==='mã');
+    if(idxMa>=0){
+      headerRowIdx=i; colMa=idxMa;
+      colTen = r.findIndex(c=>c.includes('tên')); colTen = colTen>=0?colTen:1;
+      colSl = r.findIndex(c=>c.includes('số lượng')||c.includes('sl')||c.includes('tồn')); colSl = colSl>=0?colSl:2;
+      colHsd = r.findIndex(c=>c.includes('hạn')||c.includes('hsd')); colHsd = colHsd>=0?colHsd:3;
+      break;
+    }
+  }
+  const items = [];
+  for(let i=headerRowIdx+1;i<rows.length;i++){
+    const r = rows[i]; const ma = (r[colMa]||'').toString().trim(); if(!ma) continue;
+    const ten = (r[colTen]||'').toString().trim();
+    const sl = parseFloat((r[colSl]||'0').toString().replace(/,/g,'')) || 0;
+    const hsd = (r[colHsd]||'').toString().trim();
+    const rec = {ten: ten || (catalog[ma]?.ten||''), dvt: catalog[ma]?.dvt||'', sl, hsd};
+    lyThuyetCache[ma] = rec;
+    items.push([ma, rec]);
+  }
+  const chunks = []; for(let i=0;i<items.length;i+=450) chunks.push(items.slice(i,i+450));
+  for(const chunk of chunks){
+    const batch = db.batch();
+    chunk.forEach(([ma,rec])=> batch.set(db.collection('kho').doc(currentKho).collection('lythuyet').doc(sanitizeId(ma)), rec));
+    await batch.commit();
+  }
+  toast('Đã nhập '+items.length+' dòng lý thuyết');
+  showTab('kiemke');
+}
+function startKiemKeScan(){ openScanModal('Quét kiểm kê — '+((khoList.find(k=>k.id===currentKho)||{}).name||currentKho), handleScanResultKiemKe); }
+function handleScanResultKiemKe(value, type){
+  closeScanModal();
+  let ma = null;
+  if(catalog[value]) ma = value;
+  else if(barcodeIndex[value]) ma = barcodeIndex[value];
+  else if(lyThuyetCache[value]) ma = value;
+  if(!ma){ toast('Không nhận diện được thuốc từ mã: '+value); openManualEntry(); return; }
+  showKiemKeResult(ma);
+}
+function showKiemKeResult(ma){
+  const lt = lyThuyetCache[ma]||{}; const cat = catalog[ma]||{}; const existing = ketQuaCache[ma];
+  const card = document.getElementById('kiemKeResultCard'); card.style.display='block';
+  card.innerHTML = `<div class="result-card">
+    <div class="rname">${esc(lt.ten||cat.ten||ma)}</div>
+    <div class="rcode">${esc(ma)} ${cat.dvt||lt.dvt?('&middot; '+esc(cat.dvt||lt.dvt)):''}</div>
+    <div class="lythuyet-box"><div>SL lý thuyết<b>${lt.sl!==undefined?lt.sl:'—'}</b></div><div>HSD lý thuyết<b>${esc(lt.hsd||'—')}</b></div></div>
+    ${!lyThuyetCache[ma] ? '<small class="hint" style="color:var(--amber);">⚠️ Thuốc này không có trong file lý thuyết của kho — có thể là thuốc phát sinh/dư.</small>' : ''}
+    <div class="row2" style="margin-top:10px;">
+      <div class="field"><label>SL thực tế</label><input type="number" id="slThucTeInput" value="${existing?existing.slThucTe:(lt.sl!==undefined?lt.sl:'')}"></div>
+      <div class="field"><label>HSD thực tế</label><input type="text" id="hsdThucTeInput" value="${esc(existing?existing.hsdThucTe:(lt.hsd||''))}" placeholder="vd 12/2026"></div>
+    </div>
+    <button class="btn-primary btn-block" onclick="saveKiemKeResult('${escAttr(ma)}')">💾 Lưu kết quả</button>
+    <button class="btn-secondary btn-block" onclick="startKiemKeScan()">📷 Quét tiếp</button>
+  </div>`;
+  card.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+async function saveKiemKeResult(ma){
+  const sl = parseFloat(document.getElementById('slThucTeInput').value);
+  const hsd = document.getElementById('hsdThucTeInput').value.trim();
+  if(isNaN(sl)){ toast('Nhập số lượng thực tế'); return; }
+  const lt = lyThuyetCache[ma]||{}; const cat = catalog[ma]||{};
+  const rec = {
+    slThucTe: sl, hsdThucTe: hsd, nguoiKiemKe: currentNguoi, thoiGian: new Date().toISOString(),
+    ten: lt.ten||cat.ten||ma, dvt: lt.dvt||cat.dvt||'', slLyThuyet: lt.sl!==undefined?lt.sl:null, hsdLyThuyet: lt.hsd||null
+  };
+  // mỗi thuốc là 1 document riêng -> nhiều người lưu cùng lúc không đè lên nhau
+  await db.collection('kho').doc(currentKho).collection('ketqua').doc(sanitizeId(ma)).set(rec);
+  ketQuaCache[ma] = rec;
+  recentScans = [ma, ...recentScans.filter(x=>x!==ma)];
+  toast('Đã lưu: '+rec.ten);
+  document.getElementById('kiemKeResultCard').style.display='none';
+  document.getElementById('recentScanList').innerHTML = renderRecentScans();
+}
+function openManualEntry(){
+  const overlay = document.createElement('div'); overlay.className='modal-overlay'; overlay.id='manualModalOverlay';
+  const options = Object.keys(lyThuyetCache).length ? Object.keys(lyThuyetCache) : Object.keys(catalog);
+  overlay.innerHTML = `<div class="modal-sheet" style="position:relative;">
+    <button class="close-x" onclick="document.getElementById('manualModalOverlay').remove()">✕</button>
+    <h3>Nhập thủ công</h3>
+    <div class="field"><label>Tìm theo mã hoặc tên thuốc</label><input type="text" id="manualSearch" oninput="renderManualList()" placeholder="Nhập mã hoặc tên..."></div>
+    <div id="manualList" style="max-height:50vh;overflow-y:auto;"></div></div>`;
+  document.body.appendChild(overlay);
+  window._manualOptions = options;
+  renderManualList();
+}
+function renderManualList(){
+  const q = (document.getElementById('manualSearch').value||'').toLowerCase().trim();
+  const opts = window._manualOptions||[];
+  let list = opts.map(ma=>({ma, ten:(lyThuyetCache[ma]?.ten||catalog[ma]?.ten||ma)}));
+  if(q) list = list.filter(e=>e.ma.toLowerCase().includes(q)||e.ten.toLowerCase().includes(q));
+  list = list.slice(0,40);
+  document.getElementById('manualList').innerHTML = list.map(e=>`
+    <div class="list-row" onclick="document.getElementById('manualModalOverlay').remove();showKiemKeResult('${escAttr(e.ma)}');">
+      <div><div class="name">${esc(e.ten)}</div><div class="code">${esc(e.ma)}</div></div></div>`).join('') || '<div class="empty-state">Không tìm thấy.</div>';
+}
+
+/* ============================= TAB: BAO CAO ============================= */
+function renderBaoCaoTab(){
+  if(!currentKho) return `<div class="card"><div class="empty-state">Chọn kho ở tab "Kho" để xem báo cáo.</div></div>`;
+  const khoName = (khoList.find(k=>k.id===currentKho)||{}).name || currentKho;
+  const ltKeys = Object.keys(lyThuyetCache), kqKeys = Object.keys(ketQuaCache);
+  const allKeys = Array.from(new Set([...ltKeys, ...kqKeys]));
+  let soKhop=0, soLech=0, soChuaKiem=0;
+  allKeys.forEach(ma=>{
+    const kq = ketQuaCache[ma], lt = lyThuyetCache[ma];
+    if(!kq){ soChuaKiem++; return; }
+    const ltsl = lt?lt.sl:undefined;
+    if(ltsl!==undefined && kq.slThucTe===ltsl) soKhop++; else soLech++;
+  });
+  const rows = allKeys.map(ma=>{
+    const kq = ketQuaCache[ma], lt = lyThuyetCache[ma];
+    const ten = (kq&&kq.ten)||(lt&&lt.ten)||catalog[ma]?.ten||ma;
+    if(!kq) return `<tr><td class="code">${esc(ma)}<br>${esc(ten)}</td><td>${lt?lt.sl:'—'}</td><td>—</td><td>${esc(lt?lt.hsd:'—')}</td><td>—</td><td><span class="tag missing">Chưa kiểm</span></td><td>—</td></tr>`;
+    const ltsl = lt?lt.sl:undefined;
+    const lech = ltsl!==undefined ? (kq.slThucTe-ltsl) : null;
+    const tag = lech===null?'<span class="tag diff">Ngoài DS</span>':(lech===0?'<span class="tag match">Khớp</span>':`<span class="tag diff">${lech>0?'Thừa '+lech:'Thiếu '+Math.abs(lech)}</span>`);
+    return `<tr><td class="code">${esc(ma)}<br>${esc(ten)}</td><td>${ltsl!==undefined?ltsl:'—'}</td><td>${kq.slThucTe}</td><td>${esc(lt?lt.hsd:'—')}</td><td>${esc(kq.hsdThucTe||'—')}</td><td>${tag}</td>
+      <td>${esc(kq.nguoiKiemKe||'')}<br><span class="code">${kq.thoiGian?new Date(kq.thoiGian).toLocaleString('vi-VN'):''}</span></td></tr>`;
+  }).join('');
+  return `
+  <div class="card">
+    <h3>Báo cáo kiểm kê — ${esc(khoName)}</h3>
+    <div class="summary-grid">
+      <div class="s"><div class="n">${allKeys.length}</div><div class="l">Tổng thuốc</div></div>
+      <div class="s"><div class="n" style="color:var(--green)">${soKhop}</div><div class="l">Khớp</div></div>
+      <div class="s"><div class="n" style="color:var(--red)">${soLech}</div><div class="l">Lệch</div></div>
+      <div class="s"><div class="n" style="color:var(--amber)">${soChuaKiem}</div><div class="l">Chưa kiểm</div></div>
+    </div>
+    <button class="btn-primary btn-block" onclick="exportBaoCao()">⬇️ Xuất báo cáo Excel</button>
+    <button class="btn-secondary btn-block" onclick="refreshBaoCao()">🔄 Làm mới dữ liệu (đồng bộ từ các máy khác)</button>
+  </div>
+  <div class="card" style="overflow-x:auto;">
+    <table class="report"><thead><tr><th>Thuốc</th><th>SL LT</th><th>SL TT</th><th>HSD LT</th><th>HSD TT</th><th>Trạng thái</th><th>Người / Thời gian</th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px;">Chưa có dữ liệu</td></tr>'}</tbody></table>
+  </div>`;
+}
+async function refreshBaoCao(){ await loadKhoData(currentKho); showTab('baocao'); toast('Đã đồng bộ dữ liệu mới nhất'); }
+function exportBaoCao(){
+  const khoName = (khoList.find(k=>k.id===currentKho)||{}).name || currentKho;
+  const ltKeys = Object.keys(lyThuyetCache), kqKeys = Object.keys(ketQuaCache);
+  const allKeys = Array.from(new Set([...ltKeys, ...kqKeys]));
+  const data = allKeys.map(ma=>{
+    const kq = ketQuaCache[ma], lt = lyThuyetCache[ma];
+    const ten = (kq&&kq.ten)||(lt&&lt.ten)||catalog[ma]?.ten||ma;
+    const ltsl = lt?lt.sl:''; const ttsl = kq?kq.slThucTe:'';
+    const lech = (lt&&kq&&lt.sl!==undefined) ? (kq.slThucTe-lt.sl) : '';
+    return {'Mã thuốc':ma,'Tên thuốc':ten,'ĐVT':(kq&&kq.dvt)||(lt&&lt.dvt)||catalog[ma]?.dvt||'','SL lý thuyết':ltsl,'SL thực tế':ttsl,'Chênh lệch':lech,
+      'HSD lý thuyết':lt?lt.hsd:'','HSD thực tế':kq?kq.hsdThucTe:'','Trạng thái': !kq?'Chưa kiểm':(lech===0?'Khớp':(lech===''?'Ngoài danh sách':(lech>0?'Thừa':'Thiếu'))),
+      'Người kiểm kê':kq?kq.nguoiKiemKe:'','Thời gian': kq&&kq.thoiGian?new Date(kq.thoiGian).toLocaleString('vi-VN'):''};
+  });
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(data);
+  ws['!cols'] = [{wch:20},{wch:34},{wch:10},{wch:12},{wch:12},{wch:12},{wch:14},{wch:14},{wch:14},{wch:18},{wch:18}];
+  XLSX.utils.book_append_sheet(wb, ws, 'Kiem ke');
+  const fname = 'Kiem_ke_'+slugify(khoName)+'_'+new Date().toISOString().slice(0,10)+'.xlsx';
+  XLSX.writeFile(wb, fname);
+  toast('Đã xuất file: '+fname);
+}
+
+/* ============================= UTIL ============================= */
+function esc(s){ return (s===undefined||s===null?'':s+'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escAttr(s){ return esc(s).replace(/'/g,"&#39;"); }
+function escHtml(s){ return esc(s); }
+
+init();
+</script>
+</body>
+</html>
