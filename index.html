@@ -561,7 +561,7 @@ function manualCaptureDecode(){
     const imgData = ctx.getImageData(0,0,canvas.width,canvas.height);
     const qr = jsQR(imgData.data, imgData.width, imgData.height);
     if(qr && qr.data){ onFrame(qr.data,'qr'); return; }
-  }catch(e){}
+  }catch(e){ console.error('jsQR error', e); toast('Lỗi đọc QR: '+e.message); document.getElementById('scanStatusTxt').textContent='Đang tìm mã QR / mã vạch...'; return; }
   try{
     Quagga.decodeSingle({src:canvas.toDataURL('image/jpeg', 0.75), numOfWorkers:0, inputStream:{size:Math.min(canvas.width,1000)},
       decoder:{readers:['ean_reader','ean_8_reader','code_128_reader','code_39_reader','upc_reader']}},
@@ -569,7 +569,7 @@ function manualCaptureDecode(){
         if(result && result.codeResult && result.codeResult.code){ onFrame(result.codeResult.code,'barcode'); }
         else{ toast('Không đọc được mã trong ảnh — thử chụp lại gần/rõ hơn'); document.getElementById('scanStatusTxt').textContent='Đang tìm mã QR / mã vạch...'; }
       });
-  }catch(e){ toast('Không đọc được mã trong ảnh'); }
+  }catch(e){ console.error('Quagga error', e); toast('Không đọc được mã trong ảnh: '+e.message); }
 }
 function stopCamera(){ if(camRAF) cancelAnimationFrame(camRAF); camRAF=null; if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; } manualDecodeCtx=null; }
 
@@ -583,7 +583,22 @@ async function handleScanResultAssign(value, type){
   if(currentTab==='danhmuc'){ renderDmList(); openDmDetail(scanAssignMa); }
 }
 function openScanModal(title, onResult){
+  const missingLibs = [];
+  if(typeof jsQR === 'undefined') missingLibs.push('jsQR (đọc mã QR)');
+  if(typeof Quagga === 'undefined') missingLibs.push('Quagga (đọc mã vạch)');
   const overlay = document.createElement('div'); overlay.className='modal-overlay'; overlay.id='scanModalOverlay';
+  if(missingLibs.length){
+    overlay.innerHTML = `<div class="modal-sheet" style="position:relative;">
+      <button class="close-x" onclick="closeScanModal()">✕</button>
+      <h3>⚠️ Chưa tải được thư viện quét mã</h3>
+      <div class="desc">Thiếu: ${esc(missingLibs.join(', '))}.<br><br>
+      Nguyên nhân thường gặp: mạng chặn/chậm khi tải file từ cdnjs.cloudflare.com, hoặc trình duyệt/app đang bật chế độ chặn nội dung (Content Blocker, VPN lọc quảng cáo...).<br><br>
+      Thử: tải lại trang (kéo xuống để refresh), đổi sang mạng khác (wifi ↔ 4G), hoặc tắt tạm trình chặn quảng cáo nếu có, rồi mở lại app.</div>
+      <button class="btn-primary btn-block" onclick="location.reload()">🔄 Tải lại trang</button>
+    </div>`;
+    document.body.appendChild(overlay);
+    return;
+  }
   overlay.innerHTML = `<div class="modal-sheet" style="position:relative;">
     <button class="close-x" onclick="closeScanModal()">✕</button>
     <h3>${esc(title)}</h3>
