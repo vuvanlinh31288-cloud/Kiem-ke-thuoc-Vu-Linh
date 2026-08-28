@@ -465,16 +465,66 @@ async function queueQr(ma){
   renderDmList();
 }
 function removeFromQueue(ma){ printQueue = printQueue.filter(x=>x!==ma); renderPrintQueue(); }
+function selectAllForPrint(mode){
+  const keys = Object.keys(catalog);
+  let filtered = keys;
+  if(mode==='noQr') filtered = keys.filter(ma=>!catalog[ma].hasQr);
+  else if(mode==='hasQr') filtered = keys.filter(ma=>catalog[ma].hasQr);
+  printQueue = Array.from(new Set([...printQueue, ...filtered]));
+  const label = mode==='all'?'tất cả thuốc':mode==='noQr'?'thuốc chưa có mã QR':'thuốc đã có mã QR';
+  toast('Đã chọn '+filtered.length+' '+label+' (tổng '+printQueue.length+' trong danh sách in)');
+  renderPrintQueue();
+}
+function clearPrintQueue(){ printQueue = []; renderPrintQueue(); }
+function exportQrListExcel(){
+  if(printQueue.length===0){ toast('Danh sách in đang trống'); return; }
+  const data = printQueue.map(ma=>{
+    const item = catalog[ma]||{};
+    return {'Mã thuốc': ma, 'Tên thuốc': item.ten||'', 'Đơn vị tính': item.dvt||'', 'Đã có mã QR': item.hasQr?'Có':'Chưa'};
+  });
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(data);
+  ws['!cols'] = [{wch:20},{wch:34},{wch:12},{wch:12}];
+  XLSX.utils.book_append_sheet(wb, ws, 'Danh sach in QR');
+  XLSX.writeFile(wb, 'Danh_sach_in_QR_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  toast('Đã xuất file Excel: '+data.length+' thuốc');
+}
 function renderPrintQueue(){
   const el = document.getElementById('printQueueCard'); if(!el) return;
-  if(printQueue.length===0){ el.innerHTML=''; return; }
   el.innerHTML = `
-    <h3>Danh sách chờ in mã QR (${printQueue.length})</h3>
-    <div class="desc">Mỗi mã QR mã hoá đúng mã thuốc. In ra và dán tại vị trí để thuốc tương ứng.</div>
-    <div class="qr-grid" id="qrPreviewGrid"></div>
+    <h3>Chọn thuốc để in mã QR hàng loạt</h3>
+    <div class="desc">Chọn nhanh theo nhóm, hoặc thêm từng thuốc ở danh sách phía trên.</div>
+    <div class="row2">
+      <button class="btn-secondary btn-sm" onclick="selectAllForPrint('all')">+ Tất cả thuốc (${Object.keys(catalog).length})</button>
+      <button class="btn-secondary btn-sm" onclick="selectAllForPrint('noQr')">+ Chưa có mã QR</button>
+    </div>
+    <div class="row2" style="margin-top:8px;">
+      <button class="btn-secondary btn-sm" onclick="selectAllForPrint('hasQr')">+ Đã có mã QR</button>
+      <button class="btn-danger btn-sm" onclick="clearPrintQueue()">🗑️ Bỏ chọn tất cả</button>
+    </div>
+    ${printQueue.length===0 ? '<div class="empty-state" style="margin-top:10px;">Chưa chọn thuốc nào để in.</div>' : `
+    <div class="divider"></div>
+    <div style="font-weight:700;font-size:13.5px;margin-bottom:8px;">Danh sách chờ in (${printQueue.length})</div>
+    <div class="field">
+      <label>Kích thước mỗi nhãn khi in</label>
+      <select id="labelSizeSelect">
+        <option value="2">2cm x 2cm (nhỏ, dán vị trí hẹp)</option>
+        <option value="3" selected>3cm x 3cm (khuyến nghị — dễ đọc hơn)</option>
+        <option value="4">4cm x 4cm (to, dễ quét nhất)</option>
+      </select>
+    </div>
     <button class="btn-primary btn-block" onclick="openPrintSheet()">🖨️ In danh sách này</button>
-    <button class="btn-secondary btn-block" onclick="printQueue=[];renderPrintQueue();">Xoá danh sách chờ in</button>`;
+    <button class="btn-secondary btn-block" onclick="exportQrListExcel()">⬇️ Xuất Excel danh sách này</button>
+    <div id="qrPreviewGrid" class="qr-grid" style="margin-top:12px;"></div>
+    `}
+  `;
+  if(printQueue.length===0) return;
   const grid = document.getElementById('qrPreviewGrid');
+  if(printQueue.length > 60){
+    grid.style.display = 'block';
+    grid.innerHTML = '<div class="empty-state">Danh sách quá lớn ('+printQueue.length+' thuốc) để xem trước từng mã — vẫn in/xuất Excel bình thường được.</div>';
+    return;
+  }
   printQueue.forEach(ma=>{
     const item = catalog[ma]||{ten:ma};
     const tile = document.createElement('div'); tile.className='qr-tile';
@@ -487,17 +537,30 @@ function renderPrintQueue(){
   });
 }
 function openPrintSheet(){
+  const sizeCm = parseFloat(document.getElementById('labelSizeSelect')?.value || '3');
+  const nameFontPt = Math.max(6, Math.round(sizeCm*3.2));
+  const codeFontPt = Math.max(5.5, Math.round(sizeCm*2.6));
   const w = window.open('', '_blank');
   let body = printQueue.map(ma=>{
     const item = catalog[ma]||{ten:ma};
-    return `<div class="lbl"><canvas id="c-${ma.replace(/[^a-zA-Z0-9]/g,'')}"></canvas><div class="lname">${escHtml(item.ten||'')}</div><div class="lcode">${escHtml(ma)}</div></div>`;
+    const cid = ma.replace(/[^a-zA-Z0-9]/g,'');
+    return `<div class="lbl"><canvas id="c-${cid}"></canvas><div class="lname">${escHtml(item.ten||'')}</div><div class="lcode">${escHtml(ma)}</div></div>`;
   }).join('');
   w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>In mã QR thuốc</title>
-  <style>body{font-family:sans-serif;margin:0;padding:14px;}.sheet{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}.lbl{border:1px dashed #999;border-radius:8px;padding:8px;text-align:center;break-inside:avoid;}.lbl canvas{width:100%;height:auto;}.lname{font-size:10px;font-weight:700;margin-top:4px;line-height:1.25;}.lcode{font-size:9px;color:#555;font-family:monospace;}@media print{.noprint{display:none;}}</style>
+  <style>
+    @page{ margin:8mm; }
+    body{font-family:sans-serif;margin:0;padding:8px;}
+    .sheet{display:flex;flex-wrap:wrap;gap:3mm;}
+    .lbl{width:${sizeCm}cm;box-sizing:border-box;border:1px dashed #999;border-radius:2mm;padding:1.5mm;text-align:center;break-inside:avoid;display:flex;flex-direction:column;align-items:center;}
+    .lbl canvas{width:100%;height:auto;display:block;}
+    .lname{font-size:${nameFontPt}pt;font-weight:700;margin-top:0.8mm;line-height:1.15;max-width:100%;overflow:hidden;word-break:break-word;}
+    .lcode{font-size:${codeFontPt}pt;color:#333;font-family:monospace;margin-top:0.4mm;word-break:break-all;}
+    @media print{ .noprint{display:none;} }
+  </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"><\/script>
-  </head><body><button class="noprint" onclick="window.print()" style="margin-bottom:10px;padding:8px 14px;">In trang này</button>
+  </head><body><button class="noprint" onclick="window.print()" style="margin-bottom:10px;padding:8px 14px;">In trang này (${printQueue.length} nhãn, ${sizeCm}cm)</button>
   <div class="sheet">${body}</div>
-  <script>${printQueue.map(ma=>`try{ new QRious({element:document.getElementById('c-${ma.replace(/[^a-zA-Z0-9]/g,'')}'), value:${JSON.stringify(ma)}, size:220, level:'M'}); }catch(e){}`).join('\n')}<\/script>
+  <script>${printQueue.map(ma=>`try{ new QRious({element:document.getElementById('c-${ma.replace(/[^a-zA-Z0-9]/g,'')}'), value:${JSON.stringify(ma)}, size:320, level:'M', padding:8}); }catch(e){}`).join('\n')}<\/script>
   </body></html>`);
   w.document.close();
 }
