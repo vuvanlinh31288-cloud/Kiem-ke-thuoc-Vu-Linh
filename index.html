@@ -503,17 +503,23 @@ function openPrintSheet(){
 }
 
 /* ============================= CAMERA / SCANNING ============================= */
+let manualDecodeCtx = null;
 async function startCamera(videoElId, onFrame){
   const video = document.getElementById(videoElId);
   try{ camStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment', width:{ideal:1280}, height:{ideal:960}}}); }
   catch(e){ toast('Không truy cập được camera: '+e.message); return false; }
-  video.srcObject = camStream; await video.play();
+  video.srcObject = camStream;
+  try{ await video.play(); }catch(e){ console.warn('video.play() bị chặn, camera vẫn hiển thị do autoplay:', e); }
   const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d',{willReadFrequently:true});
   const smallCanvas = document.createElement('canvas'); const smallCtx = smallCanvas.getContext('2d',{willReadFrequently:true});
   let lastBarcodeAttempt = 0;
+  let frameCount = 0;
+  manualDecodeCtx = {video, canvas, ctx, onFrame};
   function tick(){
     if(!camStream) return;
     if(video.videoWidth){
+      frameCount++;
+      if(frameCount===60){ document.getElementById('scanFallbackBtn')?.classList.remove('hidden'); }
       canvas.width = video.videoWidth; canvas.height = video.videoHeight;
       ctx.drawImage(video,0,0,canvas.width,canvas.height);
       try{
@@ -536,13 +542,36 @@ async function startCamera(videoElId, onFrame){
             function(result){ quaggaBusy=false; if(result && result.codeResult && result.codeResult.code){ onFrame(result.codeResult.code,'barcode'); } });
         }catch(e){ quaggaBusy=false; }
       }
+    }else{
+      if(frameCount===0){ setTimeout(()=>{ if(!video.videoWidth) document.getElementById('scanFallbackBtn')?.classList.remove('hidden'); }, 2500); frameCount=-1; }
     }
     camRAF = requestAnimationFrame(tick);
   }
   camRAF = requestAnimationFrame(tick);
   return true;
 }
-function stopCamera(){ if(camRAF) cancelAnimationFrame(camRAF); camRAF=null; if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; } }
+function manualCaptureDecode(){
+  if(!manualDecodeCtx) return;
+  const {video, canvas, ctx, onFrame} = manualDecodeCtx;
+  if(!video.videoWidth){ toast('Camera chưa sẵn sàng, thử lại sau 1-2 giây'); return; }
+  canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+  ctx.drawImage(video,0,0,canvas.width,canvas.height);
+  document.getElementById('scanStatusTxt').textContent = 'Đang phân tích ảnh chụp...';
+  try{
+    const imgData = ctx.getImageData(0,0,canvas.width,canvas.height);
+    const qr = jsQR(imgData.data, imgData.width, imgData.height);
+    if(qr && qr.data){ onFrame(qr.data,'qr'); return; }
+  }catch(e){}
+  try{
+    Quagga.decodeSingle({src:canvas.toDataURL('image/jpeg', 0.75), numOfWorkers:0, inputStream:{size:Math.min(canvas.width,1000)},
+      decoder:{readers:['ean_reader','ean_8_reader','code_128_reader','code_39_reader','upc_reader']}},
+      function(result){
+        if(result && result.codeResult && result.codeResult.code){ onFrame(result.codeResult.code,'barcode'); }
+        else{ toast('Không đọc được mã trong ảnh — thử chụp lại gần/rõ hơn'); document.getElementById('scanStatusTxt').textContent='Đang tìm mã QR / mã vạch...'; }
+      });
+  }catch(e){ toast('Không đọc được mã trong ảnh'); }
+}
+function stopCamera(){ if(camRAF) cancelAnimationFrame(camRAF); camRAF=null; if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; } manualDecodeCtx=null; }
 
 function startAssignBarcode(ma){ scanAssignMa = ma; openScanModal('Quét mã vạch: '+(catalog[ma]?.ten||ma), handleScanResultAssign); }
 async function handleScanResultAssign(value, type){
@@ -558,7 +587,8 @@ function openScanModal(title, onResult){
   overlay.innerHTML = `<div class="modal-sheet" style="position:relative;">
     <button class="close-x" onclick="closeScanModal()">✕</button>
     <h3>${esc(title)}</h3>
-    <div class="scan-wrap"><video id="scanVideo" autoplay playsinline muted></video><div class="scan-frame"></div><div class="scan-line"></div><div class="scan-status" id="scanStatusTxt">Đang tìm mã QR / mã vạch...</div></div>
+    <div class="scan-wrap"><video id="scanVideo" autoplay playsinline webkit-playsinline muted></video><div class="scan-frame"></div><div class="scan-line"></div><div class="scan-status" id="scanStatusTxt">Đang tìm mã QR / mã vạch...</div></div>
+    <button id="scanFallbackBtn" class="btn-secondary btn-block hidden" onclick="manualCaptureDecode()">📸 Không tự nhận diện được? Bấm để chụp và quét</button>
     <small class="hint">Đưa mã vào giữa khung hình, giữ camera cách mã ~10-15cm, đủ sáng, hạn chế rung tay. Mã vạch bao bì thường chậm hơn mã QR.</small></div>`;
   document.body.appendChild(overlay);
   startCamera('scanVideo', (value,type)=>{ document.getElementById('scanStatusTxt').textContent='Đã đọc: '+value; onResult(value,type); });
