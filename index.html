@@ -465,15 +465,28 @@ async function queueQr(ma){
   renderDmList();
 }
 function removeFromQueue(ma){ printQueue = printQueue.filter(x=>x!==ma); renderPrintQueue(); }
-function selectAllForPrint(mode){
+async function selectAllForPrint(mode){
   const keys = Object.keys(catalog);
   let filtered = keys;
   if(mode==='noQr') filtered = keys.filter(ma=>!catalog[ma].hasQr);
   else if(mode==='hasQr') filtered = keys.filter(ma=>catalog[ma].hasQr);
   printQueue = Array.from(new Set([...printQueue, ...filtered]));
   const label = mode==='all'?'tất cả thuốc':mode==='noQr'?'thuốc chưa có mã QR':'thuốc đã có mã QR';
-  toast('Đã chọn '+filtered.length+' '+label+' (tổng '+printQueue.length+' trong danh sách in)');
+  toast('Đã chọn '+filtered.length+' '+label+' — đang đánh dấu đã tạo QR...');
   renderPrintQueue();
+  // đánh dấu hasQr=true cho các thuốc vừa chọn (nếu chưa có), để đồng bộ với nhãn hiển thị
+  const toMark = filtered.filter(ma=>!catalog[ma].hasQr);
+  if(toMark.length){
+    const chunks = []; for(let i=0;i<toMark.length;i+=450) chunks.push(toMark.slice(i,i+450));
+    for(const chunk of chunks){
+      const batch = db.batch();
+      chunk.forEach(ma=>{ batch.set(db.collection('thuoc').doc(sanitizeId(ma)), {hasQr:true}, {merge:true}); catalog[ma].hasQr = true; });
+      await batch.commit();
+    }
+    toast('Đã đánh dấu '+toMark.length+' thuốc là đã tạo QR');
+    renderDmList();
+    renderPrintQueue();
+  }
 }
 function clearPrintQueue(){ printQueue = []; renderPrintQueue(); }
 function exportQrListExcel(){
