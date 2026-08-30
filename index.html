@@ -172,6 +172,7 @@ try{
 let catalog = {};
 let barcodeIndex = {};
 let khoList = [];
+let hiddenKhoList = [];
 let currentKho = null;
 let currentNguoi = "";
 let lyThuyetCache = {};
@@ -202,8 +203,8 @@ async function init(){
 
   // kho list
   const khoSnap = await db.collection('kho').get();
-  khoList = [];
-  khoSnap.forEach(doc=> khoList.push({id:doc.id, name:doc.data().name}));
+  khoList = []; hiddenKhoList = [];
+  khoSnap.forEach(doc=>{ const d = doc.data(); const item = {id:doc.id, name:d.name}; if(d.hidden) hiddenKhoList.push(item); else khoList.push(item); });
 
   // personal prefs stay on this device only
   currentKho = localStorage.getItem('kk_last_kho') || null;
@@ -277,6 +278,11 @@ function renderKhoTab(){
       <button class="btn-sm btn-danger" onclick="event.stopPropagation();deleteKho('${escAttr(k.id)}')">Xoá</button>
     </div>`;
   }).join('') || `<div class="empty-state">Chưa có kho nào. Thêm kho đầu tiên bên dưới.</div>`;
+  let hiddenRows = hiddenKhoList.map(k=>`
+    <div class="list-row">
+      <div><div class="name">${esc(k.name)}</div></div>
+      <button class="btn-sm btn-secondary" onclick="restoreKho('${escAttr(k.id)}')">↩️ Khôi phục</button>
+    </div>`).join('');
   return `
   <div class="card">
     <h3>Danh sách kho</h3>
@@ -288,6 +294,12 @@ function renderKhoTab(){
     <div class="field"><input type="text" id="newKhoName" placeholder="VD: Kho chính, Kho lẻ khoa Cấp cứu..."></div>
     <button class="btn-primary btn-block" onclick="addKho()">+ Thêm kho</button>
   </div>
+  ${hiddenKhoList.length ? `
+  <div class="card">
+    <h3>Kho đã ẩn (${hiddenKhoList.length})</h3>
+    <div class="desc">Các kho đã bị xoá khỏi danh sách chọn. Dữ liệu kiểm kê vẫn còn nguyên — bấm "Khôi phục" để dùng lại.</div>
+    ${hiddenRows}
+  </div>` : ''}
   <div class="card">
     <h3>Người kiểm kê</h3>
     <div class="desc">Tên này ghi kèm mỗi lần lưu kết quả, lưu riêng trên thiết bị này.</div>
@@ -302,7 +314,9 @@ async function addKho(){
   if(!name){ toast('Nhập tên kho'); return; }
   const id = slugify(name);
   if(khoList.find(k=>k.id===id)){ toast('Kho đã tồn tại'); return; }
-  await db.collection('kho').doc(id).set({name});
+  const hidden = hiddenKhoList.find(k=>k.id===id);
+  if(hidden){ await restoreKho(id); return; }
+  await db.collection('kho').doc(id).set({name, hidden:false});
   khoList.push({id, name});
   await selectKho(id);
   showTab('kho');
@@ -310,10 +324,20 @@ async function addKho(){
 }
 async function deleteKho(id){
   const k = khoList.find(x=>x.id===id);
-  if(!confirm('Xoá kho "'+(k?k.name:id)+'" khỏi danh sách? (Dữ liệu kiểm kê cũ vẫn còn trong cơ sở dữ liệu, chỉ ẩn khỏi danh sách chọn)')) return;
-  await db.collection('kho').doc(id).delete();
+  if(!confirm('Xoá kho "'+(k?k.name:id)+'" khỏi danh sách? (Dữ liệu kiểm kê cũ vẫn còn nguyên, vào mục "Kho đã ẩn" để khôi phục lại bất cứ lúc nào)')) return;
+  await db.collection('kho').doc(id).set({hidden:true}, {merge:true});
   khoList = khoList.filter(x=>x.id!==id);
+  if(k) hiddenKhoList.push(k);
   if(currentKho===id){ currentKho=null; localStorage.removeItem('kk_last_kho'); updateHeaderPills(); }
+  showTab('kho');
+}
+async function restoreKho(id){
+  const k = hiddenKhoList.find(x=>x.id===id);
+  if(!k) return;
+  await db.collection('kho').doc(id).set({hidden:false}, {merge:true});
+  hiddenKhoList = hiddenKhoList.filter(x=>x.id!==id);
+  khoList.push(k);
+  toast('Đã khôi phục kho: '+k.name);
   showTab('kho');
 }
 async function selectKho(id){
@@ -695,7 +719,7 @@ function renderKiemKeTab(){
   return `
   <div class="card">
     <h3>1. Nhập file lý thuyết</h3>
-    <div class="desc">File Excel gồm: Mã thuốc, Tên thuốc, Số lượng tồn (lý thuyết), Hạn sử dụng (lý thuyết). Áp dụng cho kho <b>${esc(khoName)}</b>.</div>
+    <div class="desc">File Excel gồm: Mã thuốc, Tên thuốc, Số lượng tồn (lý thuyết), Hạn sử dụng (lý thuyết). Áp dụng cho kho <b>${esc(khoName)}</b>. Thuốc nào đã kiểm kê rồi sẽ được giữ nguyên, không bị ghi đè khi nhập file mới.</div>
     <input type="file" id="lyThuyetFile" accept=".xlsx,.xls,.csv" onchange="importLyThuyet(event)">
     <small class="hint">Đã có ${soLyThuyet} dòng lý thuyết &middot; ${soDaKiem} thuốc đã kiểm.</small>
   </div>
@@ -736,8 +760,10 @@ async function importLyThuyet(evt){
     }
   }
   const items = [];
+  let soBoQua = 0;
   for(let i=headerRowIdx+1;i<rows.length;i++){
     const r = rows[i]; const ma = (r[colMa]||'').toString().trim(); if(!ma) continue;
+    if(ketQuaCache[ma]){ soBoQua++; continue; } // đã kiểm kê rồi -> giữ nguyên, không ghi đè
     const ten = (r[colTen]||'').toString().trim();
     const sl = parseFloat((r[colSl]||'0').toString().replace(/,/g,'')) || 0;
     const hsd = (r[colHsd]||'').toString().trim();
@@ -751,7 +777,7 @@ async function importLyThuyet(evt){
     chunk.forEach(([ma,rec])=> batch.set(db.collection('kho').doc(currentKho).collection('lythuyet').doc(sanitizeId(ma)), rec));
     await batch.commit();
   }
-  toast('Đã nhập '+items.length+' dòng lý thuyết');
+  toast('Đã cập nhật '+items.length+' thuốc'+(soBoQua?' — giữ nguyên '+soBoQua+' thuốc đã kiểm kê':''));
   showTab('kiemke');
 }
 function startKiemKeScan(){ openScanModal('Quét kiểm kê — '+((khoList.find(k=>k.id===currentKho)||{}).name||currentKho), handleScanResultKiemKe); }
