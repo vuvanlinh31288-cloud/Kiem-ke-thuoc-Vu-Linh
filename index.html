@@ -388,6 +388,7 @@ function renderDanhMucTab(){
   <div class="card">
     <h3>Cập nhật danh mục hàng loạt từ Excel</h3>
     <div class="desc">Dùng khi có nhiều thuốc mới cùng lúc. File cần cột: Mã thuốc, Tên thuốc, Đơn vị tính — giống định dạng file danh mục ban đầu. Thuốc đã có mã sẽ chỉ cập nhật tên/ĐVT, không mất mã vạch đã gán.</div>
+    <button class="link-btn" onclick="downloadTemplateDanhMuc()">⬇️ Tải file mẫu (Excel)</button>
     <input type="file" id="danhMucFile" accept=".xlsx,.xls,.csv" onchange="importDanhMucFile(event)">
   </div>
   <div class="card" id="printQueueCard"></div>
@@ -513,6 +514,30 @@ async function selectAllForPrint(mode){
   }
 }
 function clearPrintQueue(){ printQueue = []; renderPrintQueue(); }
+function downloadTemplateDanhMuc(){
+  const data = [
+    {'Mã thuốc':'AA.06.02.10.9999', 'Tên thuốc':'Paracetamol 500mg (VD, VN)', 'Đơn vị tính':'viên'},
+    {'Mã thuốc':'AA.06.02.10.9998', 'Tên thuốc':'Amoxicillin 500mg (VD, VN)', 'Đơn vị tính':'viên'}
+  ];
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(data);
+  ws['!cols'] = [{wch:22},{wch:36},{wch:14}];
+  XLSX.utils.book_append_sheet(wb, ws, 'Danh muc mau');
+  XLSX.writeFile(wb, 'File_mau_danh_muc_thuoc.xlsx');
+  toast('Đã tải file mẫu — xoá 2 dòng ví dụ rồi điền dữ liệu thật của bạn vào');
+}
+function downloadTemplateLyThuyet(){
+  const data = [
+    {'Mã thuốc':'AA.06.02.10.0020', 'Tên thuốc':'Rifampicin 150mg (VN)', 'Số lượng tồn':100, 'Hạn sử dụng':'12/2027'},
+    {'Mã thuốc':'AA.06.02.10.0034', 'Tên thuốc':'Voxin 1g (Vianex,Greece)', 'Số lượng tồn':50, 'Hạn sử dụng':'06/2027'}
+  ];
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(data);
+  ws['!cols'] = [{wch:22},{wch:36},{wch:14},{wch:14}];
+  XLSX.utils.book_append_sheet(wb, ws, 'Ly thuyet mau');
+  XLSX.writeFile(wb, 'File_mau_ly_thuyet_kiem_ke.xlsx');
+  toast('Đã tải file mẫu — xoá 2 dòng ví dụ rồi điền dữ liệu thật của bạn vào');
+}
 function exportQrListExcel(){
   if(printQueue.length===0){ toast('Danh sách in đang trống'); return; }
   const data = printQueue.map(ma=>{
@@ -720,6 +745,7 @@ function renderKiemKeTab(){
   <div class="card">
     <h3>1. Nhập file lý thuyết</h3>
     <div class="desc">File Excel gồm: Mã thuốc, Tên thuốc, Số lượng tồn (lý thuyết), Hạn sử dụng (lý thuyết). Áp dụng cho kho <b>${esc(khoName)}</b>. Thuốc nào đã kiểm kê rồi sẽ được giữ nguyên, không bị ghi đè khi nhập file mới.</div>
+    <button class="link-btn" onclick="downloadTemplateLyThuyet()">⬇️ Tải file mẫu (Excel)</button>
     <input type="file" id="lyThuyetFile" accept=".xlsx,.xls,.csv" onchange="importLyThuyet(event)">
     <small class="hint">Đã có ${soLyThuyet} dòng lý thuyết &middot; ${soDaKiem} thuốc đã kiểm.</small>
   </div>
@@ -798,11 +824,12 @@ function showKiemKeResult(ma){
     <div class="rcode">${esc(ma)} ${cat.dvt||lt.dvt?('&middot; '+esc(cat.dvt||lt.dvt)):''}</div>
     <div class="lythuyet-box"><div>SL lý thuyết<b>${lt.sl!==undefined?lt.sl:'—'}</b></div><div>HSD lý thuyết<b>${esc(lt.hsd||'—')}</b></div></div>
     ${!lyThuyetCache[ma] ? '<small class="hint" style="color:var(--amber);">⚠️ Thuốc này không có trong file lý thuyết của kho — có thể là thuốc phát sinh/dư.</small>' : ''}
+    ${existing ? `<small class="hint" style="color:var(--amber);">⚠️ Đã được <b>${esc(existing.nguoiKiemKe||'?')}</b> kiểm kê lúc ${existing.thoiGian?new Date(existing.thoiGian).toLocaleString('vi-VN'):'?'} — SL: ${existing.slThucTe}, HSD: ${esc(existing.hsdThucTe||'—')}</small>` : ''}
     <div class="row2" style="margin-top:10px;">
       <div class="field"><label>SL thực tế</label><input type="number" id="slThucTeInput" value="${existing?existing.slThucTe:(lt.sl!==undefined?lt.sl:'')}"></div>
       <div class="field"><label>HSD thực tế</label><input type="text" id="hsdThucTeInput" value="${esc(existing?existing.hsdThucTe:(lt.hsd||''))}" placeholder="vd 12/2026"></div>
     </div>
-    <button class="btn-primary btn-block" onclick="saveKiemKeResult('${escAttr(ma)}')">💾 Lưu kết quả</button>
+    <button class="btn-primary btn-block" onclick="saveKiemKeResult('${escAttr(ma)}')">💾 ${existing?'Cập nhật số liệu mới':'Lưu kết quả'}</button>
     <button class="btn-secondary btn-block" onclick="startKiemKeScan()">📷 Quét tiếp</button>
   </div>`;
   card.scrollIntoView({behavior:'smooth', block:'nearest'});
@@ -811,6 +838,27 @@ async function saveKiemKeResult(ma){
   const sl = parseFloat(document.getElementById('slThucTeInput').value);
   const hsd = document.getElementById('hsdThucTeInput').value.trim();
   if(isNaN(sl)){ toast('Nhập số lượng thực tế'); return; }
+  // kiểm tra dữ liệu mới nhất từ máy chủ (phòng trường hợp người khác vừa lưu trong lúc mình đang nhập)
+  let existing = ketQuaCache[ma];
+  try{
+    const freshDoc = await db.collection('kho').doc(currentKho).collection('ketqua').doc(sanitizeId(ma)).get();
+    if(freshDoc.exists) existing = freshDoc.data();
+  }catch(e){}
+  if(existing){
+    const thoiGianStr = existing.thoiGian ? new Date(existing.thoiGian).toLocaleString('vi-VN') : '?';
+    const xacNhan = confirm(
+      'Sản phẩm này đã được "'+(existing.nguoiKiemKe||'?')+'" kiểm kê lúc '+thoiGianStr+'\n'+
+      'SL đã lưu: '+existing.slThucTe+' — HSD: '+(existing.hsdThucTe||'—')+'\n\n'+
+      'Bạn có muốn cập nhật số liệu mới không?\n'+
+      '(Đồng ý = ghi đè bằng số liệu vừa nhập. Huỷ = giữ nguyên số liệu cũ.)'
+    );
+    if(!xacNhan){
+      ketQuaCache[ma] = existing;
+      toast('Đã giữ nguyên số liệu của '+(existing.nguoiKiemKe||'người trước'));
+      document.getElementById('kiemKeResultCard').style.display='none';
+      return;
+    }
+  }
   const lt = lyThuyetCache[ma]||{}; const cat = catalog[ma]||{};
   const rec = {
     slThucTe: sl, hsdThucTe: hsd, nguoiKiemKe: currentNguoi, thoiGian: new Date().toISOString(),
