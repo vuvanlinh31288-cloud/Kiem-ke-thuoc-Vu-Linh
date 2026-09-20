@@ -98,6 +98,16 @@ small.hint{font-size:11.5px;color:var(--muted);display:block;margin-top:4px;}
 .setup-screen{max-width:520px;margin:40px auto;padding:0 16px;}
 .setup-screen ol{padding-left:18px;font-size:13.5px;line-height:1.7;}
 .setup-screen code{background:#EFEAE0;padding:2px 6px;border-radius:5px;font-family:var(--mono);font-size:12px;}
+.calc-display{width:100%;box-sizing:border-box;padding:12px 14px;border:1.5px solid var(--teal);border-radius:10px;font-size:22px;font-family:var(--mono);font-weight:700;text-align:right;background:#fff;color:var(--ink);letter-spacing:0.01em;min-height:26px;}
+.calc-display::placeholder{color:var(--muted);font-weight:400;}
+.calc-pad{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px;}
+.calc-btn{background:#FCFBF8;border:1px solid var(--line);border-radius:10px;font-size:18px;font-weight:700;color:var(--ink);padding:14px 0;font-family:var(--mono);cursor:pointer;}
+.calc-btn:active{background:#EFEAE0;}
+.calc-btn.calc-op{background:#EAF3F1;color:var(--teal);}
+.calc-btn.calc-eq{background:var(--teal);color:#fff;}
+.calc-btn.calc-eq:active{background:var(--teal-dark);}
+.calc-btn.calc-clear{grid-column:span 4;background:var(--red-bg);color:var(--red);font-family:var(--sans);font-size:14px;padding:10px 0;}
+.calc-btn.calc-zero{grid-column:span 2;}
 </style>
 </head>
 <body>
@@ -182,6 +192,8 @@ let printQueue = [];
 let currentTab = 'kho';
 let camStream = null, camRAF = null, quaggaBusy = false;
 let scanAssignMa = null;
+let calcExpr = '';
+let calcJustEvaluated = false;
 
 /* ============================= INIT ============================= */
 async function init(){
@@ -816,6 +828,62 @@ function handleScanResultKiemKe(value, type){
   if(!ma){ toast('Không nhận diện được thuốc từ mã: '+value); openManualEntry(); return; }
   showKiemKeResult(ma);
 }
+/* ============================= MÁY TÍNH BỎ TÚI CHO Ô SL THỰC TẾ ============================= */
+function evalCalcSafe(expr){
+  const cleaned = (expr||'').trim();
+  if(!cleaned) return null;
+  if(!/^[0-9+\-*/.\s]+$/.test(cleaned)) return null; // chỉ cho phép số và 4 phép tính cơ bản
+  let stripped = cleaned.replace(/[+\-*/.]+$/,''); // bỏ toán tử/thừa ở cuối nếu người dùng chưa bấm =
+  if(!stripped) return null;
+  try{
+    // eslint-disable-next-line no-new-func
+    const result = Function('"use strict"; return (' + stripped + ')')();
+    if(typeof result !== 'number' || !isFinite(result)) return null;
+    return Math.round(result * 1e6) / 1e6; // làm tròn tránh sai số dấu phẩy động
+  }catch(e){ return null; }
+}
+function updateCalcDisplay(){
+  const el = document.getElementById('slThucTeInput');
+  if(el) el.value = calcExpr;
+}
+function calcPress(token){
+  const el = document.getElementById('slThucTeInput');
+  if(!el) return;
+  if(token==='C'){ calcExpr=''; calcJustEvaluated=false; updateCalcDisplay(); return; }
+  if(token==='='){
+    const result = evalCalcSafe(calcExpr);
+    if(result===null){ toast('Phép tính không hợp lệ'); return; }
+    calcExpr = String(result);
+    calcJustEvaluated = true;
+    updateCalcDisplay();
+    return;
+  }
+  const isDigitOrDot = /^[0-9.]$/.test(token);
+  const isOp = /^[+\-*/]$/.test(token);
+  if(isDigitOrDot){
+    if(calcJustEvaluated){ calcExpr=''; calcJustEvaluated=false; }
+    if(token==='.'){
+      const lastNumberSeg = calcExpr.split(/[+\-*/]/).pop();
+      if(lastNumberSeg.includes('.')) return; // tránh 2 dấu chấm trong 1 số
+      if(lastNumberSeg==='') calcExpr += '0';
+    }
+    calcExpr += token;
+    updateCalcDisplay();
+    return;
+  }
+  if(isOp){
+    calcJustEvaluated = false;
+    if(calcExpr===''){
+      if(token==='-') calcExpr = '-'; // cho phép số âm ở đầu
+      updateCalcDisplay();
+      return;
+    }
+    if(/[+\-*/]$/.test(calcExpr)) calcExpr = calcExpr.slice(0,-1)+token; // thay toán tử vừa gõ nếu bấm tiếp toán tử khác
+    else calcExpr += token;
+    updateCalcDisplay();
+    return;
+  }
+}
 function showKiemKeResult(ma){
   const lt = lyThuyetCache[ma]||{}; const cat = catalog[ma]||{}; const existing = ketQuaCache[ma];
   const card = document.getElementById('kiemKeResultCard'); card.style.display='block';
@@ -825,19 +893,47 @@ function showKiemKeResult(ma){
     <div class="lythuyet-box"><div>SL lý thuyết<b>${lt.sl!==undefined?lt.sl:'—'}</b></div><div>HSD lý thuyết<b>${esc(lt.hsd||'—')}</b></div></div>
     ${!lyThuyetCache[ma] ? '<small class="hint" style="color:var(--amber);">⚠️ Thuốc này không có trong file lý thuyết của kho — có thể là thuốc phát sinh/dư.</small>' : ''}
     ${existing ? `<small class="hint" style="color:var(--amber);">⚠️ Đã được <b>${esc(existing.nguoiKiemKe||'?')}</b> kiểm kê lúc ${existing.thoiGian?new Date(existing.thoiGian).toLocaleString('vi-VN'):'?'} — SL: ${existing.slThucTe}, HSD: ${esc(existing.hsdThucTe||'—')}</small>` : ''}
-    <div class="row2" style="margin-top:10px;">
-      <div class="field"><label>SL thực tế</label><input type="number" id="slThucTeInput" value="${existing?existing.slThucTe:(lt.sl!==undefined?lt.sl:'')}"></div>
-      <div class="field"><label>HSD thực tế</label><input type="text" id="hsdThucTeInput" value="${esc(existing?existing.hsdThucTe:(lt.hsd||''))}" placeholder="vd 12/2026"></div>
+    <div class="field" style="margin-top:10px;">
+      <label>SL thực tế <span style="font-weight:400;color:var(--muted);">(gõ số hoặc phép tính, VD 12*30+5, rồi bấm =)</span></label>
+      <input type="text" id="slThucTeInput" class="calc-display" readonly inputmode="none" placeholder="0" value="${existing?existing.slThucTe:(lt.sl!==undefined?lt.sl:'')}">
+      <div class="calc-pad">
+        <button type="button" class="calc-btn calc-clear" onclick="calcPress('C')">🗑️ Xoá</button>
+        <button type="button" class="calc-btn" onclick="calcPress('7')">7</button>
+        <button type="button" class="calc-btn" onclick="calcPress('8')">8</button>
+        <button type="button" class="calc-btn" onclick="calcPress('9')">9</button>
+        <button type="button" class="calc-btn calc-op" onclick="calcPress('/')">÷</button>
+        <button type="button" class="calc-btn" onclick="calcPress('4')">4</button>
+        <button type="button" class="calc-btn" onclick="calcPress('5')">5</button>
+        <button type="button" class="calc-btn" onclick="calcPress('6')">6</button>
+        <button type="button" class="calc-btn calc-op" onclick="calcPress('*')">×</button>
+        <button type="button" class="calc-btn" onclick="calcPress('1')">1</button>
+        <button type="button" class="calc-btn" onclick="calcPress('2')">2</button>
+        <button type="button" class="calc-btn" onclick="calcPress('3')">3</button>
+        <button type="button" class="calc-btn calc-op" onclick="calcPress('-')">−</button>
+        <button type="button" class="calc-btn calc-zero" onclick="calcPress('0')">0</button>
+        <button type="button" class="calc-btn" onclick="calcPress('.')">.</button>
+        <button type="button" class="calc-btn calc-op" onclick="calcPress('+')">+</button>
+        <button type="button" class="calc-btn calc-eq" style="grid-column:span 4;" onclick="calcPress('=')">=</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>HSD thực tế</label>
+      <input type="text" id="hsdThucTeInput" value="${esc(existing?existing.hsdThucTe:(lt.hsd||''))}" placeholder="vd 12/2026">
     </div>
     <button class="btn-primary btn-block" onclick="saveKiemKeResult('${escAttr(ma)}')">💾 ${existing?'Cập nhật số liệu mới':'Lưu kết quả'}</button>
     <button class="btn-secondary btn-block" onclick="startKiemKeScan()">📷 Quét tiếp</button>
   </div>`;
+  calcExpr = (existing?existing.slThucTe:(lt.sl!==undefined?lt.sl:'')).toString();
+  calcJustEvaluated = true;
   card.scrollIntoView({behavior:'smooth', block:'nearest'});
 }
 async function saveKiemKeResult(ma){
-  const sl = parseFloat(document.getElementById('slThucTeInput').value);
+  // tự tính nốt phép tính nếu người dùng nhập xong nhưng quên bấm dấu =
+  const rawCalc = document.getElementById('slThucTeInput').value;
+  let sl = evalCalcSafe(rawCalc);
+  if(sl===null) sl = parseFloat(rawCalc);
   const hsd = document.getElementById('hsdThucTeInput').value.trim();
-  if(isNaN(sl)){ toast('Nhập số lượng thực tế'); return; }
+  if(sl===null || isNaN(sl)){ toast('Nhập số lượng thực tế'); return; }
   // kiểm tra dữ liệu mới nhất từ máy chủ (phòng trường hợp người khác vừa lưu trong lúc mình đang nhập)
   let existing = ketQuaCache[ma];
   try{
