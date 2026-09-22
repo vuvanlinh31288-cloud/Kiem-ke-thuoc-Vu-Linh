@@ -123,6 +123,49 @@ small.hint{font-size:11.5px;color:var(--muted);display:block;margin-top:4px;}
   </div>
 </div>
 
+<div id="firstRunScreen" class="setup-screen hidden">
+  <div class="card">
+    <h3>🔐 Thiết lập lần đầu</h3>
+    <div class="desc">
+      Đây là lần đầu app chạy với cơ sở dữ liệu hiện tại — đặt 2 mật khẩu dưới đây trước khi dùng.
+      Bạn có thể xem/đổi lại cả hai mật khẩu này sau trong mục ⚙️ Quản trị.
+    </div>
+    <div class="field">
+      <label>Đặt mật khẩu quản trị (chỉ bạn biết)</label>
+      <input type="password" id="frAdminPw" placeholder="Mật khẩu quản trị">
+    </div>
+    <div class="field">
+      <label>Đặt mật khẩu vào app (dùng chung, gửi cho nhân viên)</label>
+      <input type="password" id="frAppPw" placeholder="Mật khẩu vào app">
+    </div>
+    <button class="btn-primary btn-block" onclick="submitFirstRunSetup()">Lưu &amp; bắt đầu dùng app</button>
+    <small class="hint">Nếu sau này quên mật khẩu, vào Firebase Console → Firestore Database → collection
+      <code>config</code> → document <code>admin</code> hoặc <code>app</code> để xem/sửa trực tiếp (xem README.md).</small>
+  </div>
+</div>
+
+<div id="appGateScreen" class="setup-screen hidden">
+  <div class="card">
+    <h3>🔒 Nhập mật khẩu vào app</h3>
+    <div class="desc">Nhập mật khẩu dùng chung do quản trị viên cung cấp.</div>
+    <div class="field">
+      <input type="password" id="appGatePw" placeholder="Mật khẩu vào app" onkeydown="if(event.key==='Enter')submitAppGate()">
+    </div>
+    <button class="btn-primary btn-block" onclick="submitAppGate()">Vào app</button>
+  </div>
+</div>
+
+<div id="chonBenhVienScreen" class="setup-screen hidden">
+  <div class="card">
+    <h3>🏥 Chọn bệnh viện</h3>
+    <div class="desc">Chọn bệnh viện đang làm việc. Cần mật khẩu riêng của bệnh viện đó (chỉ hỏi 1 lần trên mỗi thiết bị).</div>
+    <div id="benhVienListEl"></div>
+  </div>
+  <div class="card">
+    <button class="btn-secondary btn-block" onclick="startTaoBenhVien()">➕ Tạo bệnh viện mới</button>
+  </div>
+</div>
+
 <div id="appRoot" class="hidden">
 <div class="app-header">
   <div class="eyebrow">Khoa Dược &middot; Kiểm kê tồn kho</div>
@@ -131,6 +174,8 @@ small.hint{font-size:11.5px;color:var(--muted);display:block;margin-top:4px;}
   <div class="context-row">
     <div class="pill" id="khoPill" onclick="showTab('kho')">🏬 Kho: <b id="khoPillText">Chưa chọn</b></div>
     <div class="pill" id="nguoiPill" onclick="openNguoiModal()">🧑‍⚕️ <b id="nguoiPillText">Chưa có tên</b></div>
+    <div class="pill" onclick="switchBenhVien()">🏥 <b>Đổi bệnh viện</b></div>
+    <div class="pill" onclick="openAdminPanel()">⚙️ <b>Quản trị</b></div>
   </div>
 </div>
 
@@ -194,32 +239,216 @@ let camStream = null, camRAF = null, quaggaBusy = false;
 let scanAssignMa = null;
 let calcExpr = '';
 let calcJustEvaluated = false;
+let currentBenhVien = null;
+let benhvienList = [];
 
-/* ============================= INIT ============================= */
+/* ============================= HELPERS: PHẠM VI THEO BỆNH VIỆN ============================= */
+function bvRef(){ return db.collection('benhvien').doc(currentBenhVien); }
+function thuocCol(){ return bvRef().collection('thuoc'); }
+function khoCol(){ return bvRef().collection('kho'); }
+
+/* ============================= INIT / CỔNG MẬT KHẨU ============================= */
 async function init(){
   if(!firebaseReady){
     document.getElementById('setupScreen').classList.remove('hidden');
     return;
   }
-  document.getElementById('appRoot').classList.remove('hidden');
-
-  // catalog
-  const catSnap = await db.collection('thuoc').get();
-  if(catSnap.empty){
-    // seed from bundled default list (first-time setup)
-    await seedCatalog();
-  }else{
-    catSnap.forEach(doc=>{ const d = doc.data(); catalog[doc.id] = {ten:d.ten||'', dvt:d.dvt||'', barcode:d.barcode||null, hasQr: !!d.hasQr}; });
+  let adminDoc;
+  try{ adminDoc = await db.collection('config').doc('admin').get(); }
+  catch(e){ console.error(e); alert('Lỗi kết nối cơ sở dữ liệu: '+e.message); return; }
+  if(!adminDoc.exists){
+    document.getElementById('firstRunScreen').classList.remove('hidden');
+    return;
   }
+  if(localStorage.getItem('kk_app_ok')!=='1'){
+    document.getElementById('appGateScreen').classList.remove('hidden');
+    return;
+  }
+  await enterBenhVienFlow();
+}
+
+async function submitFirstRunSetup(){
+  const adminPw = document.getElementById('frAdminPw').value;
+  const appPw = document.getElementById('frAppPw').value;
+  if(!adminPw || !appPw){ toast('Nhập đầy đủ cả 2 mật khẩu'); return; }
+  await db.collection('config').doc('admin').set({password: adminPw});
+  await db.collection('config').doc('app').set({password: appPw});
+  toast('Đã thiết lập mật khẩu thành công');
+  document.getElementById('firstRunScreen').classList.add('hidden');
+  localStorage.setItem('kk_app_ok', '1');
+  await enterBenhVienFlow();
+}
+
+async function submitAppGate(){
+  const val = document.getElementById('appGatePw').value;
+  let doc;
+  try{ doc = await db.collection('config').doc('app').get(); }
+  catch(e){ toast('Lỗi kết nối: '+e.message); return; }
+  const pw = (doc.data()||{}).password || '';
+  if(val && val===pw){
+    localStorage.setItem('kk_app_ok', '1');
+    document.getElementById('appGateScreen').classList.add('hidden');
+    await enterBenhVienFlow();
+  }else{
+    toast('Sai mật khẩu vào app');
+  }
+}
+
+function hideAllGateScreens(){
+  ['setupScreen','firstRunScreen','appGateScreen','chonBenhVienScreen','appRoot'].forEach(id=>{
+    const el = document.getElementById(id); if(el) el.classList.add('hidden');
+  });
+}
+
+async function enterBenhVienFlow(){
+  const snap = await db.collection('benhvien').get();
+  benhvienList = [];
+  snap.forEach(doc=>{ const d = doc.data()||{}; if(!d.hidden) benhvienList.push({id:doc.id, name:d.name||doc.id}); });
+
+  const savedBv = localStorage.getItem('kk_current_bv');
+  if(savedBv && benhvienList.find(b=>b.id===savedBv) && localStorage.getItem('kk_bv_ok_'+savedBv)==='1'){
+    await enterAppForBenhVien(savedBv);
+    return;
+  }
+  showChonBenhVien();
+}
+
+function showChonBenhVien(){
+  hideAllGateScreens();
+  document.getElementById('chonBenhVienScreen').classList.remove('hidden');
+  renderBenhVienList();
+}
+
+function renderBenhVienList(){
+  const el = document.getElementById('benhVienListEl'); if(!el) return;
+  if(benhvienList.length===0){ el.innerHTML = '<div class="empty-state">Chưa có bệnh viện nào. Tạo bệnh viện đầu tiên bên dưới.</div>'; return; }
+  el.innerHTML = benhvienList.map(b=>{
+    const verified = localStorage.getItem('kk_bv_ok_'+b.id)==='1';
+    return `<div class="list-row" onclick="pickBenhVien('${escAttr(b.id)}')">
+      <div><div class="name">${esc(b.name)}</div></div>
+      <span class="badge ${verified?'ok':'no'}">${verified?'🔓 Đã lưu':'🔒 Cần mật khẩu'}</span>
+    </div>`;
+  }).join('');
+}
+
+async function pickBenhVien(id){
+  const bv = benhvienList.find(b=>b.id===id); if(!bv) return;
+  if(localStorage.getItem('kk_bv_ok_'+id)==='1'){ await enterAppForBenhVien(id); return; }
+  openPasswordPrompt('Mật khẩu bệnh viện: '+bv.name, 'Nhập mật khẩu riêng của bệnh viện này.', async (val)=>{
+    let doc;
+    try{ doc = await db.collection('benhvien').doc(id).get(); }
+    catch(e){ toast('Lỗi kết nối: '+e.message); return false; }
+    const pw = (doc.data()||{}).password || '';
+    if(val && val===pw){
+      localStorage.setItem('kk_bv_ok_'+id, '1');
+      await enterAppForBenhVien(id);
+      return true;
+    }
+    toast('Sai mật khẩu bệnh viện');
+    return false;
+  });
+}
+
+async function enterAppForBenhVien(id){
+  currentBenhVien = id;
+  localStorage.setItem('kk_current_bv', id);
+  hideAllGateScreens();
+  document.getElementById('appRoot').classList.remove('hidden');
+  await initAppData();
+}
+
+function switchBenhVien(){
+  stopCamera();
+  currentBenhVien = null;
+  document.getElementById('appRoot').classList.add('hidden');
+  enterBenhVienFlow();
+}
+
+/* mẫu popup nhập mật khẩu dùng chung (cổng bệnh viện, cổng admin...) */
+function openPasswordPrompt(title, desc, onSubmit){
+  document.getElementById('pwPromptOverlay')?.remove();
+  const overlay = document.createElement('div'); overlay.className='modal-overlay'; overlay.id='pwPromptOverlay';
+  overlay.innerHTML = `<div class="modal-sheet" style="position:relative;">
+    <button class="close-x" onclick="document.getElementById('pwPromptOverlay').remove()">✕</button>
+    <h3>${esc(title)}</h3>
+    ${desc?`<div class="desc">${esc(desc)}</div>`:''}
+    <div class="field"><input type="password" id="pwPromptInput" placeholder="Mật khẩu"></div>
+    <button id="pwPromptSubmitBtn" class="btn-primary btn-block">Xác nhận</button>
+  </div>`;
+  document.body.appendChild(overlay);
+  const submit = async ()=>{
+    const val = document.getElementById('pwPromptInput').value;
+    const ok = await onSubmit(val);
+    if(ok) document.getElementById('pwPromptOverlay')?.remove();
+  };
+  document.getElementById('pwPromptSubmitBtn').onclick = submit;
+  document.getElementById('pwPromptInput').onkeydown = (e)=>{ if(e.key==='Enter') submit(); };
+  setTimeout(()=>document.getElementById('pwPromptInput')?.focus(), 100);
+}
+
+function requireAdmin(callback){
+  if(sessionStorage.getItem('kk_admin_ok')==='1'){ callback(); return; }
+  openPasswordPrompt('Mật khẩu quản trị', 'Yêu cầu mật khẩu quản trị để tiếp tục.', async (val)=>{
+    let doc;
+    try{ doc = await db.collection('config').doc('admin').get(); }
+    catch(e){ toast('Lỗi kết nối: '+e.message); return false; }
+    const pw = (doc.data()||{}).password || '';
+    if(val && val===pw){
+      sessionStorage.setItem('kk_admin_ok', '1');
+      callback();
+      return true;
+    }
+    toast('Sai mật khẩu quản trị');
+    return false;
+  });
+}
+
+/* ============================= TẠO BỆNH VIỆN MỚI ============================= */
+function startTaoBenhVien(){ requireAdmin(()=> showTaoBenhVienForm()); }
+function showTaoBenhVienForm(){
+  document.getElementById('taoBvOverlay')?.remove();
+  const overlay = document.createElement('div'); overlay.className='modal-overlay'; overlay.id='taoBvOverlay';
+  overlay.innerHTML = `<div class="modal-sheet" style="position:relative;">
+    <button class="close-x" onclick="document.getElementById('taoBvOverlay').remove()">✕</button>
+    <h3>➕ Tạo bệnh viện mới</h3>
+    <div class="field"><label>Tên bệnh viện</label><input type="text" id="newBvName" placeholder="VD: Bệnh viện Đa khoa ABC"></div>
+    <div class="field"><label>Mật khẩu riêng cho bệnh viện này</label><input type="text" id="newBvPassword" placeholder="Đặt mật khẩu"></div>
+    <button class="btn-primary btn-block" onclick="submitTaoBenhVien()">Tạo bệnh viện</button>
+  </div>`;
+  document.body.appendChild(overlay);
+}
+async function submitTaoBenhVien(){
+  const name = document.getElementById('newBvName').value.trim();
+  const pw = document.getElementById('newBvPassword').value;
+  if(!name || !pw){ toast('Nhập đầy đủ tên và mật khẩu'); return; }
+  const id = slugify(name);
+  const existing = await db.collection('benhvien').doc(id).get();
+  if(existing.exists){ toast('Bệnh viện với tên này đã tồn tại (trùng mã)'); return; }
+  await db.collection('benhvien').doc(id).set({name, password:pw, hidden:false});
+  toast('Đã tạo bệnh viện: '+name);
+  document.getElementById('taoBvOverlay')?.remove();
+  if(!benhvienList.find(b=>b.id===id)) benhvienList.push({id, name});
+  localStorage.setItem('kk_bv_ok_'+id, '1');
+  await enterAppForBenhVien(id);
+}
+
+/* ============================= DỮ LIỆU APP SAU KHI ĐÃ VÀO 1 BỆNH VIỆN ============================= */
+async function initAppData(){
+  catalog = {}; barcodeIndex = {}; khoList = []; hiddenKhoList = []; currentKho = null;
+
+  // catalog — bệnh viện mới bắt đầu với danh mục TRỐNG, không tự nạp danh mục mặc định nữa.
+  // Muốn có dữ liệu cũ (752 thuốc + kho), dùng "⚙️ Quản trị → 🔄 Di chuyển dữ liệu cũ".
+  const catSnap = await thuocCol().get();
+  catSnap.forEach(doc=>{ const d = doc.data(); catalog[doc.id] = {ten:d.ten||'', dvt:d.dvt||'', barcode:d.barcode||null, hasQr: !!d.hasQr}; });
   rebuildBarcodeIndex();
 
   // kho list
-  const khoSnap = await db.collection('kho').get();
+  const khoSnap = await khoCol().get();
   khoList = []; hiddenKhoList = [];
   khoSnap.forEach(doc=>{ const d = doc.data(); const item = {id:doc.id, name:d.name}; if(d.hidden) hiddenKhoList.push(item); else khoList.push(item); });
 
-  // personal prefs stay on this device only
-  currentKho = localStorage.getItem('kk_last_kho') || null;
+  // personal prefs stay on this device only (lưu riêng theo từng bệnh viện)
+  currentKho = localStorage.getItem('kk_last_kho_'+currentBenhVien) || null;
   if(currentKho && !khoList.find(k=>k.id===currentKho)) currentKho = null;
   currentNguoi = localStorage.getItem('kk_ten_nguoi') || '';
 
@@ -235,7 +464,7 @@ async function seedCatalog(){
   for(const chunk of chunks){
     const batch = db.batch();
     chunk.forEach(d=>{
-      const ref = db.collection('thuoc').doc(sanitizeId(d.ma));
+      const ref = thuocCol().doc(sanitizeId(d.ma));
       batch.set(ref, {ma:d.ma, ten:d.ten, dvt:d.dvt, barcode:null});
       catalog[d.ma] = {ten:d.ten, dvt:d.dvt, barcode:null};
     });
@@ -259,6 +488,9 @@ function updateHeaderPills(){
   document.getElementById('nguoiPillText').textContent = currentNguoi || 'Chưa có tên';
   document.getElementById('khoPill').classList.toggle('warn', !currentKho);
   document.getElementById('nguoiPill').classList.toggle('warn', !currentNguoi);
+  const bvName = currentBenhVien ? ((benhvienList.find(b=>b.id===currentBenhVien)||{}).name || currentBenhVien) : '';
+  const sub = document.getElementById('subHeader');
+  if(sub) sub.textContent = bvName ? ('Bệnh viện: '+bvName) : 'Quét mã · đối chiếu tồn · xuất báo cáo';
 }
 
 let toastTimer=null;
@@ -328,7 +560,7 @@ async function addKho(){
   if(khoList.find(k=>k.id===id)){ toast('Kho đã tồn tại'); return; }
   const hidden = hiddenKhoList.find(k=>k.id===id);
   if(hidden){ await restoreKho(id); return; }
-  await db.collection('kho').doc(id).set({name, hidden:false});
+  await khoCol().doc(id).set({name, hidden:false});
   khoList.push({id, name});
   await selectKho(id);
   showTab('kho');
@@ -337,16 +569,16 @@ async function addKho(){
 async function deleteKho(id){
   const k = khoList.find(x=>x.id===id);
   if(!confirm('Xoá kho "'+(k?k.name:id)+'" khỏi danh sách? (Dữ liệu kiểm kê cũ vẫn còn nguyên, vào mục "Kho đã ẩn" để khôi phục lại bất cứ lúc nào)')) return;
-  await db.collection('kho').doc(id).set({hidden:true}, {merge:true});
+  await khoCol().doc(id).set({hidden:true}, {merge:true});
   khoList = khoList.filter(x=>x.id!==id);
   if(k) hiddenKhoList.push(k);
-  if(currentKho===id){ currentKho=null; localStorage.removeItem('kk_last_kho'); updateHeaderPills(); }
+  if(currentKho===id){ currentKho=null; localStorage.removeItem('kk_last_kho_'+currentBenhVien); updateHeaderPills(); }
   showTab('kho');
 }
 async function restoreKho(id){
   const k = hiddenKhoList.find(x=>x.id===id);
   if(!k) return;
-  await db.collection('kho').doc(id).set({hidden:false}, {merge:true});
+  await khoCol().doc(id).set({hidden:false}, {merge:true});
   hiddenKhoList = hiddenKhoList.filter(x=>x.id!==id);
   khoList.push(k);
   toast('Đã khôi phục kho: '+k.name);
@@ -354,7 +586,7 @@ async function restoreKho(id){
 }
 async function selectKho(id){
   currentKho = id;
-  localStorage.setItem('kk_last_kho', id);
+  localStorage.setItem('kk_last_kho_'+currentBenhVien, id);
   updateHeaderPills();
   await loadKhoData(id);
   toast('Đang làm việc tại: '+((khoList.find(k=>k.id===id)||{}).name||id));
@@ -372,10 +604,10 @@ function openNguoiModal(){ showTab('kho'); setTimeout(()=>document.getElementByI
 
 async function loadKhoData(khoId){
   lyThuyetCache = {};
-  const ltSnap = await db.collection('kho').doc(khoId).collection('lythuyet').get();
+  const ltSnap = await khoCol().doc(khoId).collection('lythuyet').get();
   ltSnap.forEach(doc=> lyThuyetCache[doc.id] = doc.data());
   ketQuaCache = {};
-  const kqSnap = await db.collection('kho').doc(khoId).collection('ketqua').get();
+  const kqSnap = await khoCol().doc(khoId).collection('ketqua').get();
   kqSnap.forEach(doc=> ketQuaCache[doc.id] = doc.data());
 }
 
@@ -413,7 +645,7 @@ async function addThuocMoi(){
   if(!ma || !ten){ toast('Nhập ít nhất Mã thuốc và Tên thuốc'); return; }
   if(catalog[ma]){ toast('Mã thuốc này đã tồn tại trong danh mục'); return; }
   const rec = {ma, ten, dvt, barcode:null};
-  await db.collection('thuoc').doc(sanitizeId(ma)).set(rec);
+  await thuocCol().doc(sanitizeId(ma)).set(rec);
   catalog[ma] = {ten, dvt, barcode:null};
   toast('Đã thêm thuốc: '+ten);
   document.getElementById('newMaThuoc').value='';
@@ -450,7 +682,7 @@ async function importDanhMucFile(evt){
   const chunks = []; for(let i=0;i<items.length;i+=450) chunks.push(items.slice(i,i+450));
   for(const chunk of chunks){
     const batch = db.batch();
-    chunk.forEach(([ma,rec])=> batch.set(db.collection('thuoc').doc(sanitizeId(ma)), rec, {merge:true}));
+    chunk.forEach(([ma,rec])=> batch.set(thuocCol().doc(sanitizeId(ma)), rec, {merge:true}));
     await batch.commit();
   }
   rebuildBarcodeIndex();
@@ -495,7 +727,7 @@ async function queueQr(ma){
   toast('Đã thêm vào danh sách in: '+(catalog[ma]?.ten||ma));
   if(catalog[ma] && !catalog[ma].hasQr){
     catalog[ma].hasQr = true;
-    try{ await db.collection('thuoc').doc(sanitizeId(ma)).set({hasQr:true}, {merge:true}); }catch(e){}
+    try{ await thuocCol().doc(sanitizeId(ma)).set({hasQr:true}, {merge:true}); }catch(e){}
   }
   renderPrintQueue();
   if(document.getElementById('dmDetailCard')?.style.display==='block') openDmDetail(ma);
@@ -517,7 +749,7 @@ async function selectAllForPrint(mode){
     const chunks = []; for(let i=0;i<toMark.length;i+=450) chunks.push(toMark.slice(i,i+450));
     for(const chunk of chunks){
       const batch = db.batch();
-      chunk.forEach(ma=>{ batch.set(db.collection('thuoc').doc(sanitizeId(ma)), {hasQr:true}, {merge:true}); catalog[ma].hasQr = true; });
+      chunk.forEach(ma=>{ batch.set(thuocCol().doc(sanitizeId(ma)), {hasQr:true}, {merge:true}); catalog[ma].hasQr = true; });
       await batch.commit();
     }
     toast('Đã đánh dấu '+toMark.length+' thuốc là đã tạo QR');
@@ -715,7 +947,7 @@ async function handleScanResultAssign(value, type){
   closeScanModal();
   catalog[scanAssignMa].barcode = value;
   rebuildBarcodeIndex();
-  await db.collection('thuoc').doc(sanitizeId(scanAssignMa)).set({barcode:value}, {merge:true});
+  await thuocCol().doc(sanitizeId(scanAssignMa)).set({barcode:value}, {merge:true});
   toast('Đã gán mã: '+value);
   if(currentTab==='danhmuc'){ renderDmList(); openDmDetail(scanAssignMa); }
 }
@@ -812,7 +1044,7 @@ async function importLyThuyet(evt){
   const chunks = []; for(let i=0;i<items.length;i+=450) chunks.push(items.slice(i,i+450));
   for(const chunk of chunks){
     const batch = db.batch();
-    chunk.forEach(([ma,rec])=> batch.set(db.collection('kho').doc(currentKho).collection('lythuyet').doc(sanitizeId(ma)), rec));
+    chunk.forEach(([ma,rec])=> batch.set(khoCol().doc(currentKho).collection('lythuyet').doc(sanitizeId(ma)), rec));
     await batch.commit();
   }
   toast('Đã cập nhật '+items.length+' thuốc'+(soBoQua?' — giữ nguyên '+soBoQua+' thuốc đã kiểm kê':''));
@@ -937,7 +1169,7 @@ async function saveKiemKeResult(ma){
   // kiểm tra dữ liệu mới nhất từ máy chủ (phòng trường hợp người khác vừa lưu trong lúc mình đang nhập)
   let existing = ketQuaCache[ma];
   try{
-    const freshDoc = await db.collection('kho').doc(currentKho).collection('ketqua').doc(sanitizeId(ma)).get();
+    const freshDoc = await khoCol().doc(currentKho).collection('ketqua').doc(sanitizeId(ma)).get();
     if(freshDoc.exists) existing = freshDoc.data();
   }catch(e){}
   if(existing){
@@ -961,7 +1193,7 @@ async function saveKiemKeResult(ma){
     ten: lt.ten||cat.ten||ma, dvt: lt.dvt||cat.dvt||'', slLyThuyet: lt.sl!==undefined?lt.sl:null, hsdLyThuyet: lt.hsd||null
   };
   // mỗi thuốc là 1 document riêng -> nhiều người lưu cùng lúc không đè lên nhau
-  await db.collection('kho').doc(currentKho).collection('ketqua').doc(sanitizeId(ma)).set(rec);
+  await khoCol().doc(currentKho).collection('ketqua').doc(sanitizeId(ma)).set(rec);
   ketQuaCache[ma] = rec;
   recentScans = [ma, ...recentScans.filter(x=>x!==ma)];
   toast('Đã lưu: '+rec.ten);
@@ -1052,6 +1284,206 @@ function exportBaoCao(){
   const fname = 'Kiem_ke_'+slugify(khoName)+'_'+new Date().toISOString().slice(0,10)+'.xlsx';
   XLSX.writeFile(wb, fname);
   toast('Đã xuất file: '+fname);
+}
+
+/* ============================= ADMIN PANEL ============================= */
+function openAdminPanel(){
+  requireAdmin(()=> showAdminPanelModal());
+}
+async function showAdminPanelModal(){
+  document.getElementById('adminModalOverlay')?.remove();
+  const overlay = document.createElement('div'); overlay.className='modal-overlay'; overlay.id='adminModalOverlay';
+  overlay.innerHTML = `<div class="modal-sheet" style="position:relative;">
+    <button class="close-x" onclick="document.getElementById('adminModalOverlay').remove()">✕</button>
+    <h3>⚙️ Quản trị hệ thống</h3>
+    <div id="adminPanelBody"><div class="empty-state">Đang tải...</div></div>
+  </div>`;
+  document.body.appendChild(overlay);
+  await renderAdminPanelBody();
+}
+async function renderAdminPanelBody(){
+  const body = document.getElementById('adminPanelBody');
+  if(!body) return;
+  let bvSnap, appDoc, adminDoc, migratedDoc, legacyThuocSnap;
+  try{
+    [bvSnap, appDoc, adminDoc, migratedDoc, legacyThuocSnap] = await Promise.all([
+      db.collection('benhvien').get(),
+      db.collection('config').doc('app').get(),
+      db.collection('config').doc('admin').get(),
+      db.collection('config').doc('migrated').get(),
+      db.collection('thuoc').limit(1).get()
+    ]);
+  }catch(e){ body.innerHTML = '<div class="empty-state">Lỗi tải dữ liệu quản trị: '+esc(e.message)+'</div>'; return; }
+
+  const allBv = [];
+  bvSnap.forEach(doc=>{ const d = doc.data()||{}; allBv.push({id:doc.id, name:d.name||doc.id, password:d.password||'', hidden:!!d.hidden}); });
+  const appPw = (appDoc.data()||{}).password || '';
+  const adminPw = (adminDoc.data()||{}).password || '';
+  const migrated = !!((migratedDoc.data()||{}).done);
+  const legacyHasData = !legacyThuocSnap.empty;
+
+  const bvRows = allBv.map(b=>`
+    <div class="list-row" style="flex-wrap:wrap;align-items:flex-start;">
+      <div style="flex:1;min-width:130px;">
+        <div class="name">${esc(b.name)} ${b.hidden?'<span class="badge no">Đã ẩn</span>':''}</div>
+        <div class="code">${esc(b.id)}</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px;">
+        <input type="text" value="${escAttr(b.password)}" id="bvpw-${escAttr(b.id)}" style="width:130px;padding:7px 8px;font-size:12.5px;border:1.5px solid var(--line);border-radius:8px;" placeholder="Mật khẩu BV">
+        <button class="btn-sm btn-secondary" onclick="adminSaveBvPassword('${escAttr(b.id)}')">💾 Lưu</button>
+        <button class="btn-sm btn-secondary" onclick="adminToggleHideBv('${escAttr(b.id)}',${b.hidden?'false':'true'})">${b.hidden?'↩️ Khôi phục':'🙈 Ẩn'}</button>
+        <button class="btn-sm btn-danger" onclick="adminDeleteBv('${escAttr(b.id)}','${escAttr(b.name)}')">🗑️ Xoá hẳn</button>
+      </div>
+    </div>`).join('') || '<div class="empty-state">Chưa có bệnh viện nào.</div>';
+
+  body.innerHTML = `
+    <div class="card">
+      <h3>Danh sách bệnh viện (${allBv.length})</h3>
+      <div class="desc">Xem/đổi mật khẩu từng bệnh viện, ẩn/khôi phục hoặc xoá hẳn (xoá hẳn sẽ xoá luôn toàn bộ danh mục thuốc, kho và dữ liệu kiểm kê của bệnh viện đó — không thể hoàn tác).</div>
+      ${bvRows}
+    </div>
+    <div class="card">
+      <h3>Mật khẩu vào app (dùng chung)</h3>
+      <div class="desc">Mật khẩu này gửi cho toàn bộ nhân viên. Đổi ở đây không ảnh hưởng thiết bị đã lưu sẵn "đã qua cổng app".</div>
+      <div class="field"><input type="text" id="adminAppPwInput" value="${escAttr(appPw)}"></div>
+      <button class="btn-secondary btn-block" onclick="adminSaveAppPassword()">Lưu mật khẩu vào app</button>
+    </div>
+    <div class="card">
+      <h3>Mật khẩu quản trị</h3>
+      <div class="desc">Chỉ mình bạn nên biết mật khẩu này.</div>
+      <div class="field"><input type="text" id="adminAdminPwInput" value="${escAttr(adminPw)}"></div>
+      <button class="btn-secondary btn-block" onclick="adminSaveAdminPassword()">Lưu mật khẩu quản trị</button>
+    </div>
+    ${(legacyHasData && !migrated) ? `
+    <div class="card">
+      <h3>🔄 Di chuyển dữ liệu cũ vào 1 bệnh viện</h3>
+      <div class="desc">Phát hiện dữ liệu danh mục/kho cũ (từ trước khi có tính năng nhiều bệnh viện). Chọn 1 bệnh viện bên dưới để copy toàn bộ dữ liệu cũ (danh mục thuốc, danh sách kho, lý thuyết, kết quả kiểm kê) vào bệnh viện đó — dữ liệu cũ vẫn được giữ nguyên, không bị xoá.</div>
+      <div class="field">
+        <select id="migrateTargetBv">
+          ${allBv.map(b=>`<option value="${escAttr(b.id)}">${esc(b.name)}</option>`).join('')}
+        </select>
+      </div>
+      <button class="btn-primary btn-block" onclick="adminRunMigration()">Bắt đầu di chuyển dữ liệu</button>
+      <div id="migrateStatus" class="hint" style="margin-top:8px;"></div>
+    </div>` : ''}
+  `;
+}
+async function adminSaveBvPassword(id){
+  const el = document.getElementById('bvpw-'+id); if(!el) return;
+  const val = el.value;
+  if(!val){ toast('Mật khẩu không được để trống'); return; }
+  await db.collection('benhvien').doc(id).set({password: val}, {merge:true});
+  toast('Đã lưu mật khẩu bệnh viện');
+}
+async function adminToggleHideBv(id, hideVal){
+  await db.collection('benhvien').doc(id).set({hidden: hideVal}, {merge:true});
+  toast(hideVal ? 'Đã ẩn bệnh viện' : 'Đã khôi phục bệnh viện');
+  if(hideVal && currentBenhVien===id){
+    document.getElementById('adminModalOverlay')?.remove();
+    currentBenhVien = null;
+    document.getElementById('appRoot').classList.add('hidden');
+    await enterBenhVienFlow();
+    return;
+  }
+  await renderAdminPanelBody();
+}
+async function deleteCollectionDocs(collRef){
+  const snap = await collRef.get();
+  const docs = snap.docs;
+  if(docs.length===0) return;
+  const chunks = []; for(let i=0;i<docs.length;i+=450) chunks.push(docs.slice(i,i+450));
+  for(const chunk of chunks){
+    const batch = db.batch();
+    chunk.forEach(d=> batch.delete(d.ref));
+    await batch.commit();
+  }
+}
+async function adminDeleteBv(id, name){
+  if(!confirm('Xoá HẲN bệnh viện "'+name+'" cùng TOÀN BỘ danh mục thuốc, kho và dữ liệu kiểm kê bên trong?\nKHÔNG THỂ HOÀN TÁC.')) return;
+  if(!confirm('Xác nhận lần 2: bạn chắc chắn muốn xoá vĩnh viễn "'+name+'"?')) return;
+  toast('Đang xoá dữ liệu bệnh viện, vui lòng đợi...');
+  const ref = db.collection('benhvien').doc(id);
+  try{
+    await deleteCollectionDocs(ref.collection('thuoc'));
+    const khoSnap = await ref.collection('kho').get();
+    for(const khoDoc of khoSnap.docs){
+      await deleteCollectionDocs(khoDoc.ref.collection('lythuyet'));
+      await deleteCollectionDocs(khoDoc.ref.collection('ketqua'));
+      await khoDoc.ref.delete();
+    }
+    await ref.delete();
+  }catch(e){ toast('Lỗi khi xoá: '+e.message); return; }
+  localStorage.removeItem('kk_bv_ok_'+id);
+  if(localStorage.getItem('kk_current_bv')===id) localStorage.removeItem('kk_current_bv');
+  toast('Đã xoá hẳn bệnh viện: '+name);
+  if(currentBenhVien===id){
+    document.getElementById('adminModalOverlay')?.remove();
+    currentBenhVien = null;
+    document.getElementById('appRoot').classList.add('hidden');
+    await enterBenhVienFlow();
+    return;
+  }
+  await renderAdminPanelBody();
+}
+async function adminSaveAppPassword(){
+  const val = document.getElementById('adminAppPwInput').value;
+  if(!val){ toast('Mật khẩu không được để trống'); return; }
+  await db.collection('config').doc('app').set({password: val}, {merge:true});
+  toast('Đã lưu mật khẩu vào app');
+}
+async function adminSaveAdminPassword(){
+  const val = document.getElementById('adminAdminPwInput').value;
+  if(!val){ toast('Mật khẩu không được để trống'); return; }
+  await db.collection('config').doc('admin').set({password: val}, {merge:true});
+  toast('Đã lưu mật khẩu quản trị');
+}
+
+/* ============================= DI CHUYỂN DỮ LIỆU CŨ (top-level thuoc/kho -> 1 bệnh viện) ============================= */
+async function copyDocsInChunks(docs, destRefFn){
+  if(docs.length===0) return;
+  const chunks = []; for(let i=0;i<docs.length;i+=450) chunks.push(docs.slice(i,i+450));
+  for(const chunk of chunks){
+    const batch = db.batch();
+    chunk.forEach(d=> batch.set(destRefFn(d), d.data()));
+    await batch.commit();
+  }
+}
+async function adminRunMigration(){
+  const targetId = document.getElementById('migrateTargetBv')?.value;
+  if(!targetId){ toast('Chọn bệnh viện đích'); return; }
+  if(!confirm('Di chuyển toàn bộ danh mục thuốc + kho + dữ liệu kiểm kê CŨ (dữ liệu ở cấp cao nhất, trước khi có tính năng nhiều bệnh viện) vào bệnh viện đã chọn?\nDữ liệu cũ vẫn được giữ nguyên (chỉ copy, không xoá).')) return;
+  const statusEl = document.getElementById('migrateStatus');
+  const setStatus = (t)=>{ if(statusEl) statusEl.textContent = t; };
+  const targetRef = db.collection('benhvien').doc(targetId);
+  try{
+    // legacy top-level 'thuoc' -> benhvien/{id}/thuoc (nguồn dữ liệu cũ, đọc trực tiếp từ collection gốc)
+    setStatus('Đang di chuyển danh mục thuốc...');
+    const legacyThuocSnap = await db.collection('thuoc').get();
+    await copyDocsInChunks(legacyThuocSnap.docs, doc=> targetRef.collection('thuoc').doc(doc.id));
+
+    // legacy top-level 'kho' (+ lythuyet/ketqua con) -> benhvien/{id}/kho/...
+    const legacyKhoSnap = await db.collection('kho').get();
+    let i = 0;
+    for(const khoDoc of legacyKhoSnap.docs){
+      i++;
+      setStatus('Đang di chuyển kho '+i+'/'+legacyKhoSnap.docs.length+': '+(khoDoc.data().name||khoDoc.id)+'...');
+      await targetRef.collection('kho').doc(khoDoc.id).set(khoDoc.data());
+      const ltSnap = await db.collection('kho').doc(khoDoc.id).collection('lythuyet').get();
+      await copyDocsInChunks(ltSnap.docs, doc=> targetRef.collection('kho').doc(khoDoc.id).collection('lythuyet').doc(doc.id));
+      const kqSnap = await db.collection('kho').doc(khoDoc.id).collection('ketqua').get();
+      await copyDocsInChunks(kqSnap.docs, doc=> targetRef.collection('kho').doc(khoDoc.id).collection('ketqua').doc(doc.id));
+    }
+
+    await db.collection('config').doc('migrated').set({done:true});
+    setStatus('');
+    toast('Đã di chuyển xong dữ liệu cũ vào bệnh viện đã chọn.');
+    // nếu đang đứng trong đúng bệnh viện vừa nhận dữ liệu, nạp lại danh mục/kho cho khớp
+    if(currentBenhVien===targetId) await initAppData();
+    await renderAdminPanelBody();
+  }catch(e){
+    setStatus('');
+    toast('Lỗi khi di chuyển dữ liệu: '+e.message);
+  }
 }
 
 /* ============================= UTIL ============================= */
