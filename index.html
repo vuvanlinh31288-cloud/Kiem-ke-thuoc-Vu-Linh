@@ -360,8 +360,9 @@ async function enterAppForBenhVien(id){
 function switchBenhVien(){
   stopCamera();
   currentBenhVien = null;
+  localStorage.removeItem('kk_current_bv'); // quên bệnh viện đang nhớ, để hiện lại màn chọn bệnh viện
   document.getElementById('appRoot').classList.add('hidden');
-  enterBenhVienFlow();
+  enterBenhVienFlow(); // tải lại danh sách bệnh viện mới nhất rồi hiện màn chọn
 }
 
 /* mẫu popup nhập mật khẩu dùng chung (cổng bệnh viện, cổng admin...) */
