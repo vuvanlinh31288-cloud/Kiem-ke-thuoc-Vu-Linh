@@ -234,6 +234,7 @@ let lyThuyetCache = {};
 let ketQuaCache = {};
 let recentScans = [];
 let printQueue = [];
+let printListNotFound = [];
 let currentTab = 'kho';
 let camStream = null, camRAF = null, quaggaBusy = false;
 let scanAssignMa = null;
@@ -440,7 +441,7 @@ async function initAppData(){
   // catalog — bệnh viện mới bắt đầu với danh mục TRỐNG, không tự nạp danh mục mặc định nữa.
   // Muốn có dữ liệu cũ (752 thuốc + kho), dùng "⚙️ Quản trị → 🔄 Di chuyển dữ liệu cũ".
   const catSnap = await thuocCol().get();
-  catSnap.forEach(doc=>{ const d = doc.data(); catalog[doc.id] = {ten:d.ten||'', dvt:d.dvt||'', barcode:d.barcode||null, hasQr: !!d.hasQr}; });
+  catSnap.forEach(doc=>{ const d = doc.data(); catalog[doc.id] = {ten:d.ten||'', dvt:d.dvt||'', hoatchat:d.hoatchat||'', barcode:d.barcode||null, hasQr: !!d.hasQr}; });
   rebuildBarcodeIndex();
 
   // kho list
@@ -467,7 +468,7 @@ async function seedCatalog(){
     chunk.forEach(d=>{
       const ref = thuocCol().doc(sanitizeId(d.ma));
       batch.set(ref, {ma:d.ma, ten:d.ten, dvt:d.dvt, barcode:null});
-      catalog[d.ma] = {ten:d.ten, dvt:d.dvt, barcode:null};
+      catalog[d.ma] = {ten:d.ten, dvt:d.dvt, hoatchat:'', barcode:null};
     });
     await batch.commit();
   }
@@ -627,12 +628,13 @@ function renderDanhMucTab(){
     <div class="desc">Thêm từng thuốc mới vào danh mục dùng chung.</div>
     <div class="field"><label>Mã thuốc</label><input type="text" id="newMaThuoc" placeholder="VD: AA.06.02.10.9999"></div>
     <div class="field"><label>Tên thuốc</label><input type="text" id="newTenThuoc" placeholder="VD: Paracetamol 500mg"></div>
+    <div class="field"><label>Hoạt chất</label><input type="text" id="newHoatChatThuoc" placeholder="VD: Paracetamol"></div>
     <div class="field"><label>Đơn vị tính</label><input type="text" id="newDvtThuoc" placeholder="VD: viên"></div>
     <button class="btn-primary btn-block" onclick="addThuocMoi()">+ Thêm vào danh mục</button>
   </div>
   <div class="card">
     <h3>Cập nhật danh mục hàng loạt từ Excel</h3>
-    <div class="desc">Dùng khi có nhiều thuốc mới cùng lúc. File cần cột: Mã thuốc, Tên thuốc, Đơn vị tính — giống định dạng file danh mục ban đầu. Thuốc đã có mã sẽ chỉ cập nhật tên/ĐVT, không mất mã vạch đã gán.</div>
+    <div class="desc">Dùng khi có nhiều thuốc mới cùng lúc. File cần cột: Mã thuốc, Tên thuốc, Đơn vị tính — có thêm cột Hoạt chất thì sẽ cập nhật theo, không bắt buộc phải có. Thuốc đã có mã QR/mã vạch sẽ giữ nguyên, không bị mất khi cập nhật.</div>
     <button class="link-btn" onclick="downloadTemplateDanhMuc()">⬇️ Tải file mẫu (Excel)</button>
     <input type="file" id="danhMucFile" accept=".xlsx,.xls,.csv" onchange="importDanhMucFile(event)">
   </div>
@@ -642,15 +644,17 @@ function renderDanhMucTab(){
 async function addThuocMoi(){
   const ma = document.getElementById('newMaThuoc').value.trim();
   const ten = document.getElementById('newTenThuoc').value.trim();
+  const hoatchat = document.getElementById('newHoatChatThuoc').value.trim();
   const dvt = document.getElementById('newDvtThuoc').value.trim();
   if(!ma || !ten){ toast('Nhập ít nhất Mã thuốc và Tên thuốc'); return; }
   if(catalog[ma]){ toast('Mã thuốc này đã tồn tại trong danh mục'); return; }
-  const rec = {ma, ten, dvt, barcode:null};
+  const rec = {ma, ten, dvt, hoatchat, barcode:null};
   await thuocCol().doc(sanitizeId(ma)).set(rec);
-  catalog[ma] = {ten, dvt, barcode:null};
+  catalog[ma] = {ten, dvt, hoatchat, barcode:null};
   toast('Đã thêm thuốc: '+ten);
   document.getElementById('newMaThuoc').value='';
   document.getElementById('newTenThuoc').value='';
+  document.getElementById('newHoatChatThuoc').value='';
   document.getElementById('newDvtThuoc').value='';
   renderDmList();
 }
@@ -660,7 +664,7 @@ async function importDanhMucFile(evt){
   const wb = XLSX.read(buf, {type:'array', cellDates:true});
   const ws = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:false, defval:''});
-  let headerRowIdx=0, colMa=0, colTen=1, colDvt=2;
+  let headerRowIdx=0, colMa=0, colTen=1, colDvt=2, colHoatChat=-1;
   for(let i=0;i<Math.min(rows.length,3);i++){
     const r = rows[i].map(c=>(''+c).toLowerCase());
     const idxMa = r.findIndex(c=>(c.includes('mã')&&c.includes('thuốc'))||c.includes('ma thuoc')||c==='mã');
@@ -668,6 +672,7 @@ async function importDanhMucFile(evt){
       headerRowIdx=i; colMa=idxMa;
       colTen = r.findIndex(c=>c.includes('tên')); colTen = colTen>=0?colTen:1;
       colDvt = r.findIndex(c=>c.includes('đơn vị')||c.includes('don vi')||c.includes('dvt')); colDvt = colDvt>=0?colDvt:2;
+      colHoatChat = r.findIndex(c=>c.includes('hoạt chất')||c.includes('hoat chat'));
       break;
     }
   }
@@ -676,9 +681,12 @@ async function importDanhMucFile(evt){
     const r = rows[i]; const ma = (r[colMa]||'').toString().trim(); if(!ma) continue;
     const ten = (r[colTen]||'').toString().trim();
     const dvt = (r[colDvt]||'').toString().trim();
+    const hoatchat = colHoatChat>=0 ? (r[colHoatChat]||'').toString().trim() : undefined;
     if(catalog[ma]) soCapNhat++; else soMoi++;
-    items.push([ma, {ma, ten, dvt}]);
-    catalog[ma] = {ten, dvt, barcode: catalog[ma]?.barcode || null, hasQr: catalog[ma]?.hasQr || false};
+    const rec = {ma, ten, dvt};
+    if(hoatchat!==undefined) rec.hoatchat = hoatchat;
+    items.push([ma, rec]);
+    catalog[ma] = {ten, dvt, hoatchat: hoatchat!==undefined ? hoatchat : (catalog[ma]?.hoatchat || ''), barcode: catalog[ma]?.barcode || null, hasQr: catalog[ma]?.hasQr || false};
   }
   const chunks = []; for(let i=0;i<items.length;i+=450) chunks.push(items.slice(i,i+450));
   for(const chunk of chunks){
@@ -701,7 +709,7 @@ function renderDmList(){
   if(entries.length===0){ el.innerHTML = '<div class="empty-state">Không tìm thấy thuốc phù hợp.</div>'; return; }
   el.innerHTML = entries.map(e=>`
     <div class="list-row" onclick="openDmDetail('${escAttr(e.ma)}')">
-      <div><div class="name">${esc(e.ten||'(chưa có tên)')}</div><div class="code">${esc(e.ma)} &middot; ${esc(e.dvt||'')}</div></div>
+      <div><div class="name">${esc(e.ten||'(chưa có tên)')}</div><div class="code">${esc(e.ma)} &middot; ${esc(e.dvt||'')}</div>${e.hoatchat ? '<div class="code" style="font-style:italic;">'+esc(e.hoatchat)+'</div>' : ''}</div>
       <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
         <span class="badge ${e.barcode?'ok':'no'}">${e.barcode?'Đã có mã vạch':'Chưa có mã vạch'}</span>
         ${e.hasQr ? '<span class="badge ok">Đã tạo QR</span>' : ''}
@@ -715,14 +723,29 @@ function openDmDetail(ma){
   card.innerHTML = `
     <h3>${esc(item.ten||ma)}</h3>
     <div class="desc" style="font-family:var(--mono);">${esc(ma)} &middot; ${esc(item.dvt||'')}</div>
-    ${item.barcode ? `<div class="lythuyet-box"><div>Mã vạch đã gán<b style="font-family:var(--mono);font-size:12px;">${esc(item.barcode)}</b></div></div>` : ''}
+    ${item.hoatchat ? `<div class="desc" style="font-style:italic;margin-top:-8px;">${esc(item.hoatchat)}</div>` : ''}
+    ${item.barcode ?`<div class="lythuyet-box"><div>Mã vạch đã gán<b style="font-family:var(--mono);font-size:12px;">${esc(item.barcode)}</b></div></div>` : ''}
     ${item.hasQr ? `<div class="lythuyet-box"><div>Mã QR<b style="font-size:12px;color:var(--green);">✅ Đã tạo</b></div></div>` : ''}
     <button class="btn-primary btn-block" onclick="startAssignBarcode('${escAttr(ma)}')">📷 Quét mã vạch bao bì để gán</button>
     <button class="btn-secondary btn-block" onclick="queueQr('${escAttr(ma)}')">➕ ${item.hasQr?'Tạo lại / in lại mã QR':'Thêm vào danh sách in mã QR'}</button>
+    <button class="btn-danger btn-block" onclick="deleteThuoc('${escAttr(ma)}')">🗑️ Xoá khỏi danh mục</button>
     <button class="link-btn" onclick="closeDmDetail()">Đóng</button>`;
   card.scrollIntoView({behavior:'smooth', block:'nearest'});
 }
 function closeDmDetail(){ document.getElementById('dmDetailCard').style.display='none'; }
+async function deleteThuoc(ma){
+  const item = catalog[ma]; if(!item) return;
+  const ok = confirm('Xoá thuốc "'+(item.ten||ma)+'" khỏi danh mục?\n\nThuốc sẽ không còn hiện trong danh mục đang dùng. Lịch sử kiểm kê cũ của thuốc này ở các kho (nếu có) sẽ KHÔNG bị xoá — vẫn giữ lại làm dữ liệu lịch sử, chỉ là sẽ không hiện tên thuốc kèm theo nữa vì danh mục không còn thuốc này.\n\nKhông thể hoàn tác. Tiếp tục xoá?');
+  if(!ok) return;
+  await thuocCol().doc(sanitizeId(ma)).delete();
+  delete catalog[ma];
+  printQueue = printQueue.filter(x=>x!==ma);
+  rebuildBarcodeIndex();
+  closeDmDetail();
+  renderDmList();
+  renderPrintQueue();
+  toast('Đã xoá thuốc khỏi danh mục');
+}
 async function queueQr(ma){
   if(!printQueue.includes(ma)) printQueue.push(ma);
   toast('Đã thêm vào danh sách in: '+(catalog[ma]?.ten||ma));
@@ -761,12 +784,12 @@ async function selectAllForPrint(mode){
 function clearPrintQueue(){ printQueue = []; renderPrintQueue(); }
 function downloadTemplateDanhMuc(){
   const data = [
-    {'Mã thuốc':'AA.06.02.10.9999', 'Tên thuốc':'Paracetamol 500mg (VD, VN)', 'Đơn vị tính':'viên'},
-    {'Mã thuốc':'AA.06.02.10.9998', 'Tên thuốc':'Amoxicillin 500mg (VD, VN)', 'Đơn vị tính':'viên'}
+    {'Mã thuốc':'AA.06.02.10.9999', 'Tên thuốc':'Paracetamol 500mg (VD, VN)', 'Đơn vị tính':'viên', 'Hoạt chất':'Paracetamol'},
+    {'Mã thuốc':'AA.06.02.10.9998', 'Tên thuốc':'Amoxicillin 500mg (VD, VN)', 'Đơn vị tính':'viên', 'Hoạt chất':'Amoxicillin'}
   ];
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.json_to_sheet(data);
-  ws['!cols'] = [{wch:22},{wch:36},{wch:14}];
+  ws['!cols'] = [{wch:22},{wch:36},{wch:14},{wch:22}];
   XLSX.utils.book_append_sheet(wb, ws, 'Danh muc mau');
   XLSX.writeFile(wb, 'File_mau_danh_muc_thuoc.xlsx');
   toast('Đã tải file mẫu — xoá 2 dòng ví dụ rồi điền dữ liệu thật của bạn vào');
@@ -796,11 +819,16 @@ function exportQrListExcel(){
   XLSX.writeFile(wb, 'Danh_sach_in_QR_'+new Date().toISOString().slice(0,10)+'.xlsx');
   toast('Đã xuất file Excel: '+data.length+' thuốc');
 }
+function onLabelLayoutChange(){
+  const layout = document.getElementById('labelLayoutSelect')?.value;
+  const sizeField = document.getElementById('labelSizeField');
+  if(sizeField) sizeField.style.display = layout==='square' ? 'block' : 'none';
+}
 function renderPrintQueue(){
   const el = document.getElementById('printQueueCard'); if(!el) return;
   el.innerHTML = `
     <h3>Chọn thuốc để in mã QR hàng loạt</h3>
-    <div class="desc">Chọn nhanh theo nhóm, hoặc thêm từng thuốc ở danh sách phía trên.</div>
+    <div class="desc">Chọn nhanh theo nhóm, thêm từng thuốc ở danh sách phía trên, hoặc chọn theo danh sách từ file Excel.</div>
     <div class="row2">
       <button class="btn-secondary btn-sm" onclick="selectAllForPrint('all')">+ Tất cả thuốc (${Object.keys(catalog).length})</button>
       <button class="btn-secondary btn-sm" onclick="selectAllForPrint('noQr')">+ Chưa có mã QR</button>
@@ -809,10 +837,27 @@ function renderPrintQueue(){
       <button class="btn-secondary btn-sm" onclick="selectAllForPrint('hasQr')">+ Đã có mã QR</button>
       <button class="btn-danger btn-sm" onclick="clearPrintQueue()">🗑️ Bỏ chọn tất cả</button>
     </div>
+    <div class="row2" style="margin-top:8px;">
+      <button class="btn-secondary btn-sm" onclick="document.getElementById('printListFile').click()">📂 Chọn theo danh sách Excel</button>
+      <button class="link-btn" onclick="downloadTemplateDanhSachIn()">⬇️ Tải file mẫu danh sách in</button>
+    </div>
+    <input type="file" id="printListFile" accept=".xlsx,.xls,.csv" class="hidden" onchange="importPrintListFile(event)">
+    ${printListNotFound.length ? `
+    <div class="desc" style="background:var(--amber-bg);color:var(--amber);border-radius:10px;padding:10px 12px;margin-top:10px;position:relative;">
+      <b>Không tìm thấy ${printListNotFound.length} mã trong danh mục:</b> ${esc(printListNotFound.join(', '))}
+      <button class="link-btn" style="display:block;margin-top:4px;" onclick="printListNotFound=[];renderPrintQueue();">Ẩn thông báo này</button>
+    </div>` : ''}
     ${printQueue.length===0 ? '<div class="empty-state" style="margin-top:10px;">Chưa chọn thuốc nào để in.</div>' : `
     <div class="divider"></div>
     <div style="font-weight:700;font-size:13.5px;margin-bottom:8px;">Danh sách chờ in (${printQueue.length})</div>
     <div class="field">
+      <label>Kiểu nhãn in</label>
+      <select id="labelLayoutSelect" onchange="onLabelLayoutChange()">
+        <option value="table35" selected>Bảng 3cm x 5cm — mã QR | tên thuốc (khuyến nghị)</option>
+        <option value="square">Vuông — chọn kích thước bên dưới</option>
+      </select>
+    </div>
+    <div class="field" id="labelSizeField" style="display:none;">
       <label>Kích thước mỗi nhãn khi in</label>
       <select id="labelSizeSelect">
         <option value="2">2cm x 2cm (nhỏ, dán vị trí hẹp)</option>
@@ -837,17 +882,94 @@ function renderPrintQueue(){
     const tile = document.createElement('div'); tile.className='qr-tile';
     const canvas = document.createElement('canvas'); tile.appendChild(canvas);
     const nameDiv = document.createElement('div'); nameDiv.className='qtn'; nameDiv.textContent=item.ten||ma; tile.appendChild(nameDiv);
+    if(item.hoatchat){
+      const hcDiv = document.createElement('div'); hcDiv.style.fontSize='9px'; hcDiv.style.fontStyle='italic'; hcDiv.style.color='var(--muted)'; hcDiv.style.textAlign='center'; hcDiv.style.marginTop='1px';
+      hcDiv.textContent = '('+item.hoatchat+')'; tile.appendChild(hcDiv);
+    }
     const codeDiv = document.createElement('div'); codeDiv.className='qtc'; codeDiv.textContent=ma; tile.appendChild(codeDiv);
     const rm = document.createElement('button'); rm.className='link-btn'; rm.style.fontSize='10px'; rm.textContent='Bỏ khỏi danh sách'; rm.onclick=()=>removeFromQueue(ma); tile.appendChild(rm);
     grid.appendChild(tile);
     try{ new QRious({element:canvas, value:ma, size:180, level:'M'}); }catch(e){}
   });
 }
+function downloadTemplateDanhSachIn(){
+  const data = [
+    {'Mã thuốc':'AA.06.02.10.9999'},
+    {'Mã thuốc':'AA.06.02.10.9998'}
+  ];
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(data);
+  ws['!cols'] = [{wch:22}];
+  XLSX.utils.book_append_sheet(wb, ws, 'Danh sach in mau');
+  XLSX.writeFile(wb, 'File_mau_danh_sach_in_QR.xlsx');
+  toast('Đã tải file mẫu — xoá dòng ví dụ rồi điền mã thuốc thật của bạn vào');
+}
+async function importPrintListFile(evt){
+  const file = evt.target.files[0]; if(!file) return;
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, {type:'array', cellDates:true});
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:false, defval:''});
+  let headerRowIdx=0, colMa=0;
+  for(let i=0;i<Math.min(rows.length,3);i++){
+    const r = rows[i].map(c=>(''+c).toLowerCase());
+    const idxMa = r.findIndex(c=>(c.includes('mã')&&c.includes('thuốc'))||c.includes('ma thuoc')||c==='mã');
+    if(idxMa>=0){ headerRowIdx=i; colMa=idxMa; break; }
+  }
+  const foundMa = []; const notFound = [];
+  for(let i=headerRowIdx+1;i<rows.length;i++){
+    const r = rows[i]; const ma = (r[colMa]||'').toString().trim(); if(!ma) continue;
+    if(catalog[ma]) foundMa.push(ma); else notFound.push(ma);
+  }
+  printQueue = Array.from(new Set([...printQueue, ...foundMa]));
+  printListNotFound = notFound;
+  const toMark = foundMa.filter(ma=>!catalog[ma].hasQr);
+  if(toMark.length){
+    const chunks = []; for(let i=0;i<toMark.length;i+=450) chunks.push(toMark.slice(i,i+450));
+    for(const chunk of chunks){
+      const batch = db.batch();
+      chunk.forEach(ma=>{ batch.set(thuocCol().doc(sanitizeId(ma)), {hasQr:true}, {merge:true}); catalog[ma].hasQr = true; });
+      await batch.commit();
+    }
+  }
+  toast('Đã thêm '+foundMa.length+' thuốc vào danh sách in'+(notFound.length ? ', không tìm thấy '+notFound.length+' mã' : ''));
+  evt.target.value = '';
+  renderPrintQueue();
+  renderDmList();
+}
 function openPrintSheet(){
+  const layout = document.getElementById('labelLayoutSelect')?.value || 'table35';
+  const w = window.open('', '_blank');
+  if(layout==='table35'){
+    let body = printQueue.map(ma=>{
+      const item = catalog[ma]||{ten:ma};
+      const cid = ma.replace(/[^a-zA-Z0-9]/g,'');
+      return `<div class="lbl"><div class="lqr"><canvas id="c-${cid}"></canvas></div><div class="ltxt"><div class="lname">${escHtml(item.ten||'')}</div>${item.hoatchat ? `<div class="lhc">(${escHtml(item.hoatchat)})</div>` : ''}</div></div>`;
+    }).join('');
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>In mã QR thuốc</title>
+    <style>
+      @page{ margin:8mm; }
+      body{font-family:sans-serif;margin:0;padding:8px;}
+      .sheet{display:flex;flex-wrap:wrap;gap:3mm;}
+      .lbl{width:5cm;height:3cm;box-sizing:border-box;border:1px solid #999;border-radius:2mm;break-inside:avoid;display:flex;flex-direction:row;align-items:stretch;overflow:hidden;}
+      .lqr{width:38%;flex-shrink:0;display:flex;align-items:center;justify-content:center;border-right:1px solid #999;box-sizing:border-box;padding:1.5mm;}
+      .lqr canvas{max-width:100%;max-height:100%;width:auto;height:auto;display:block;}
+      .ltxt{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:1mm 1.5mm;box-sizing:border-box;overflow:hidden;}
+      .lname{font-size:9.5pt;font-weight:700;line-height:1.15;max-width:100%;overflow:hidden;word-break:break-word;}
+      .lhc{font-size:7.5pt;font-style:italic;color:#333;margin-top:0.8mm;line-height:1.1;max-width:100%;overflow:hidden;word-break:break-word;}
+      @media print{ .noprint{display:none;} }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"><\/script>
+    </head><body><button class="noprint" onclick="window.print()" style="margin-bottom:10px;padding:8px 14px;">In trang này (${printQueue.length} nhãn, bảng 3x5cm)</button>
+    <div class="sheet">${body}</div>
+    <script>${printQueue.map(ma=>`try{ new QRious({element:document.getElementById('c-${ma.replace(/[^a-zA-Z0-9]/g,'')}'), value:${JSON.stringify(ma)}, size:320, level:'M', padding:4}); }catch(e){}`).join('\n')}<\/script>
+    </body></html>`);
+    w.document.close();
+    return;
+  }
   const sizeCm = parseFloat(document.getElementById('labelSizeSelect')?.value || '3');
   const nameFontPt = Math.max(6, Math.round(sizeCm*3.2));
   const codeFontPt = Math.max(5.5, Math.round(sizeCm*2.6));
-  const w = window.open('', '_blank');
   let body = printQueue.map(ma=>{
     const item = catalog[ma]||{ten:ma};
     const cid = ma.replace(/[^a-zA-Z0-9]/g,'');
